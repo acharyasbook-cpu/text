@@ -104,4 +104,170 @@ class SubscriptionRepository
 
         return $stmt->fetchAll();
     }
+
+    public function findPlanById(int $planId): ?array
+    {
+        if ($planId < 1 || !SchemaHelper::hasTable('sub_course_plans')) {
+            return null;
+        }
+        $st = db()->prepare(
+            'SELECT sp.*, sc.id AS sub_course_id, sc.slug AS sub_course_slug, sc.name AS sub_course_name,
+                    c.id AS course_id, c.slug AS course_slug, c.name AS course_name
+             FROM sub_course_plans sp
+             JOIN sub_courses sc ON sc.id = sp.sub_course_id
+             JOIN courses c ON c.id = sc.course_id
+             WHERE sp.id = ? LIMIT 1'
+        );
+        $st->execute([$planId]);
+        $row = $st->fetch();
+
+        return $row ?: null;
+    }
+
+    public function enrollmentAnchorForSubCourse(int $userId, int $subCourseId): ?string
+    {
+        if ($userId < 1 || $subCourseId < 1 || !SchemaHelper::columnExists('user_subscriptions', 'sub_course_plan_id')) {
+            return null;
+        }
+        $st = db()->prepare(
+            'SELECT us.purchased_at FROM user_subscriptions us
+             INNER JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id
+             WHERE us.user_id = ? AND sp.sub_course_id = ? AND us.status = "active"
+               AND (us.expires_at IS NULL OR us.expires_at > NOW())
+             ORDER BY us.purchased_at ASC LIMIT 1'
+        );
+        $st->execute([$userId, $subCourseId]);
+        $val = $st->fetchColumn();
+
+        return is_string($val) && $val !== '' ? $val : null;
+    }
+
+    public function userHasActivePlanForSubCourse(int $userId, int $subCourseId): bool
+    {
+        if ($userId < 1 || $subCourseId < 1) {
+            return false;
+        }
+        if (!SchemaHelper::columnExists('user_subscriptions', 'sub_course_plan_id')) {
+            return false;
+        }
+        $spLive = SchemaHelper::columnExists('sub_course_plans', 'status')
+            ? 'sp.status = 1 AND sp.is_active = 1' : 'sp.is_active = 1';
+        $sql = "SELECT 1 FROM user_subscriptions us
+                JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id AND {$spLive}
+                WHERE us.user_id = ? AND sp.sub_course_id = ? AND us.status = 'active'
+                  AND (us.expires_at IS NULL OR us.expires_at > NOW())
+                LIMIT 1";
+        $st = db()->prepare($sql);
+        $st->execute([$userId, $subCourseId]);
+
+        return (bool) $st->fetch();
+    }
+
+    /** Complete checkout: payment row + active subscription for sub-course plan. */
+    public function purchaseSubCoursePlan(int $userId, int $planId, string $paymentMethod = 'gateway'): array
+    {
+        $plan = $this->findPlanById($planId);
+        if (!$plan) {
+            throw new InvalidArgumentException('Subscription plan not found.');
+        }
+
+        $price = (float) ($plan['price_inr'] ?? 0);
+        if ($price < 0) {
+            throw new InvalidArgumentException('Invalid plan price.');
+        }
+
+        $expiresAt = null;
+        $months = $plan['duration_months'] ?? null;
+        if ($months !== null && (int) $months > 0) {
+            $expiresAt = date('Y-m-d H:i:s', strtotime('+' . (int) $months . ' months'));
+        }
+
+        $this->ensurePaymentsPlanColumn();
+
+        $pdo = db();
+        $pdo->beginTransaction();
+        try {
+            $txnRef = 'AB-' . strtoupper(bin2hex(random_bytes(4))) . '-' . time();
+            $paymentId = $this->insertPayment($userId, $planId, $price, $paymentMethod, $txnRef);
+
+            if (SchemaHelper::columnExists('user_subscriptions', 'sub_course_plan_id')) {
+                $subCourseId = (int) ($plan['sub_course_id'] ?? 0);
+                $pdo->prepare(
+                    'UPDATE user_subscriptions us
+                     INNER JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id
+                     SET us.status = "cancelled"
+                     WHERE us.user_id = ? AND sp.sub_course_id = ? AND us.status = "active"'
+                )->execute([$userId, $subCourseId]);
+                $pdo->prepare(
+                    'INSERT INTO user_subscriptions (user_id, package_id, sub_course_plan_id, status, expires_at)
+                     VALUES (?, NULL, ?, "active", ?)'
+                )->execute([$userId, $planId, $expiresAt]);
+            }
+
+            $pdo->commit();
+
+            return [
+                'payment_id' => $paymentId,
+                'transaction_ref' => $txnRef,
+                'plan' => $plan,
+                'expires_at' => $expiresAt,
+            ];
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    private function ensurePaymentsPlanColumn(): void
+    {
+        if (!SchemaHelper::hasTable('payments')) {
+            return;
+        }
+        if (!SchemaHelper::columnExists('payments', 'sub_course_plan_id')) {
+            try {
+                db()->exec(
+                    'ALTER TABLE payments ADD COLUMN sub_course_plan_id INT UNSIGNED NULL DEFAULT NULL AFTER package_id'
+                );
+            } catch (Throwable $e) {
+                // Column may already exist under different migration state.
+            }
+        }
+    }
+
+    private function insertPayment(int $userId, int $planId, float $amount, string $method, string $txnRef): int
+    {
+        if (!SchemaHelper::hasTable('payments')) {
+            return 0;
+        }
+
+        $hasPlanCol = SchemaHelper::columnExists('payments', 'sub_course_plan_id');
+        if ($hasPlanCol) {
+            $st = db()->prepare(
+                'INSERT INTO payments (user_id, package_id, sub_course_plan_id, amount_inr, payment_method, transaction_ref, status, notes)
+                 VALUES (?, NULL, ?, ?, ?, ?, "completed", ?)'
+            );
+            $st->execute([
+                $userId,
+                $planId,
+                $amount,
+                $method,
+                $txnRef,
+                'Sub-course plan enrolment via checkout',
+            ]);
+        } else {
+            $st = db()->prepare(
+                'INSERT INTO payments (user_id, package_id, amount_inr, payment_method, transaction_ref, status, notes)
+                 VALUES (?, NULL, ?, ?, ?, "completed", ?)'
+            );
+            $st->execute([
+                $userId,
+                $amount,
+                $method,
+                $txnRef,
+                'Sub-course plan #' . $planId,
+            ]);
+        }
+
+        return (int) db()->lastInsertId();
+    }
 }

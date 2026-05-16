@@ -30,7 +30,8 @@ final class HeaderController
 
         return [
             'catalog' => $this->courses->catalogForPublicSite(),
-            'logo_url' => $logoPath ? public_media_url($logoPath) : null,
+            'logo_url' => $logoPath ? acharya_media_url($logoPath) : null,
+            'logo_cache_v' => public_media_cache_version($logoPath),
             'site_name' => $this->platform->siteName(),
             'site_name_te' => $this->platform->siteNameTe(),
             'site_tagline_te' => $this->platform->siteTaglineTe(),

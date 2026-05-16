@@ -11,6 +11,18 @@ document.getElementById('sidebarOverlay')?.addEventListener('click', function ()
   document.getElementById('adminSidebar')?.classList.add('-translate-x-full');
   this.classList.add('hidden');
 });
+(function () {
+  var meta = document.querySelector('meta[name="csrf-token"]');
+  if (!meta || !meta.content) return;
+  document.querySelectorAll('form[method="post"]').forEach(function (form) {
+    if (form.querySelector('input[name="_csrf"]')) return;
+    var input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = '_csrf';
+    input.value = meta.content;
+    form.appendChild(input);
+  });
+})();
 </script>
 </body>
 </html>

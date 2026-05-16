@@ -26,6 +26,7 @@ final class UserController
 
         $error = null;
         $email = '';
+        $return = safe_return_path($_GET['return'] ?? '');
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $email = trim($_POST['email'] ?? '');
@@ -45,7 +46,8 @@ final class UserController
                 $_SESSION['user'] = $student;
                 unset($_SESSION['admin']);
                 $this->users->touchLastLogin((int) $student['id']);
-                redirect('dashboard.php');
+                $return = safe_return_path($_POST['return'] ?? $_GET['return'] ?? '');
+                redirect($return !== '' ? ltrim($return, '/') : 'dashboard.php');
             }
 
             $error = 'Invalid email or password.';

@@ -1,23 +1,27 @@
 (function () {
-  const grid = document.getElementById('homeCourseGrid') || document.getElementById('learnSubCourseGrid');
-  if (!grid) return;
+  const grid =
+    document.getElementById('homeCourseGrid') ||
+    document.getElementById('learnSubCourseGrid') ||
+    document.getElementById('courseSubCourseGrid');
+  const logoImg = document.getElementById('siteLogoImg');
 
-  const scope = grid.dataset.mediaScope || 'courses';
-  const courseId = grid.dataset.courseId || '';
-  const pollUrl =
-    'catalog_media.php?scope=' +
-    encodeURIComponent(scope) +
-    (courseId ? '&course_id=' + encodeURIComponent(courseId) : '');
+  if (!grid && !logoImg) return;
 
-  const placeholderHtml =
-    '<div class="text-center p-6 text-slate-400">' +
-    '<svg class="w-12 h-12 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
-    '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>' +
-    '<p class="text-xs mt-2 font-medium">No image</p></div>';
+  const scope = grid ? grid.dataset.mediaScope || 'courses' : '';
+  const courseId = grid ? grid.dataset.courseId || '' : '';
+  const pollUrl = grid
+    ? 'catalog_media.php?scope=' +
+      encodeURIComponent(scope) +
+      (courseId ? '&course_id=' + encodeURIComponent(courseId) : '')
+    : '';
 
   function renderMedia(mediaEl, item) {
     if (!item.url) {
-      mediaEl.innerHTML = placeholderHtml;
+      mediaEl.innerHTML =
+        '<div class="text-center p-6 text-slate-400">' +
+        '<svg class="w-12 h-12 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24">' +
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>' +
+        '<p class="text-xs mt-2 font-medium">No image</p></div>';
       return;
     }
     const img = document.createElement('img');
@@ -29,7 +33,8 @@
     mediaEl.appendChild(img);
   }
 
-  async function refresh() {
+  async function refreshGrid() {
+    if (!grid || !pollUrl) return;
     try {
       const res = await fetch(pollUrl, { cache: 'no-store' });
       if (!res.ok) return;
@@ -57,7 +62,6 @@
     }
   }
 
-  const logoImg = document.getElementById('siteLogoImg');
   async function refreshLogo() {
     if (!logoImg) return;
     try {
@@ -66,14 +70,23 @@
       const data = await res.json();
       if (!data.url) return;
       const next = data.url + (data.v ? '?v=' + data.v : '');
-      if (logoImg.getAttribute('src') !== next) logoImg.setAttribute('src', next);
+      if (logoImg.tagName === 'IMG') {
+        if (logoImg.getAttribute('src') !== next) logoImg.setAttribute('src', next);
+        return;
+      }
+      var img = document.createElement('img');
+      img.id = 'siteLogoImg';
+      img.src = next;
+      img.alt = '';
+      img.className = 'w-full h-full object-contain p-0.5';
+      logoImg.replaceWith(img);
     } catch (e) {
       /* silent */
     }
   }
 
-  refresh();
+  refreshGrid();
   refreshLogo();
-  setInterval(refresh, 15000);
-  setInterval(refreshLogo, 20000);
+  if (grid) setInterval(refreshGrid, 15000);
+  if (logoImg) setInterval(refreshLogo, 12000);
 })();

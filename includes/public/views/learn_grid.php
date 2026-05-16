@@ -14,18 +14,21 @@ $courseSlug = (string) $course['slug'];
   <?php else: ?>
   <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6" id="learnSubCourseGrid" data-media-scope="sub_courses" data-course-id="<?= (int) $course['id'] ?>">
     <?php foreach ($subCourses as $sc):
-        $img = !empty($sc['image_path']) ? public_media_url((string) $sc['image_path']) : '';
+        $imgPath = trim((string) ($sc['image_path'] ?? ''));
+        $img = $imgPath !== '' ? acharya_media_url($imgPath) : '';
+        $imgVer = $imgPath !== '' ? public_media_cache_version($imgPath) : 0;
+        $titleTe = trim((string) ($sc['name_te'] ?? ''));
+        $displayTitle = $titleTe !== '' ? $titleTe : (string) ($sc['name'] ?? '');
         $href = public_sub_course_workspace_url($courseSlug, $sc['slug']);
     ?>
-    <article class="classical-card group" data-entity-id="<?= (int) $sc['id'] ?>" data-image-path="<?= e((string) ($sc['image_path'] ?? '')) ?>">
+    <article class="home-course-card classical-card group" data-entity-id="<?= (int) $sc['id'] ?>" data-image-path="<?= e($imgPath) ?>">
       <a href="<?= e($href) ?>" class="block">
-        <div class="classical-card-media">
+        <div class="home-course-media classical-card-media">
           <?php if ($img !== ''): ?>
-          <img src="<?= e($img) ?>" alt="<?= e($sc['name']) ?>" loading="lazy" class="course-cover-img w-full h-full object-cover" />
+          <img src="<?= e($img) ?><?= $imgVer > 0 ? '?v=' . $imgVer : '' ?>" alt="<?= e((string) ($sc['name'] ?? '')) ?>" loading="lazy" class="course-cover-img home-course-cover-img" />
           <?php else: ?>
-          <div class="text-center p-6 text-slate-400">
-            <svg class="w-12 h-12 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-            <p class="text-xs mt-2 font-medium">No image</p>
+          <div class="home-course-placeholder" aria-hidden="true">
+            <span class="font-telugu font-bold text-lg text-slate-700 text-center px-4"><?= e($displayTitle) ?></span>
           </div>
           <?php endif; ?>
         </div>

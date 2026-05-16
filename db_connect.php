@@ -28,6 +28,11 @@ function getDBConnection(): PDO
         PDO::ATTR_EMULATE_PREPARES   => false,
     ]);
 
+    if (!class_exists('SchemaHelper', false)) {
+        require_once __DIR__ . '/models/SchemaHelper.php';
+    }
+    SchemaHelper::ensureCatalogHealth();
+
     return $pdo;
 }
 

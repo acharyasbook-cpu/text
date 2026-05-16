@@ -11,38 +11,63 @@ if (!$result) {
 }
 unset($_SESSION['last_result']);
 
+$totalQ = (int) ($result['correct'] ?? 0) + (int) ($result['wrong'] ?? 0) + (int) ($result['unanswered'] ?? 0);
 $pct = $result['max_score'] > 0 ? round($result['score'] / $result['max_score'] * 100) : 0;
+$accuracy = $totalQ > 0 ? round(((int) $result['correct'] / $totalQ) * 100) : 0;
 
-$pageTitle = 'Exam Result | Acharya Books';
+$pageTitle = 'పరీక్ష ఫలితం | Acharya Books';
 $activeNav = 'exams';
 require __DIR__ . '/includes/head.php';
 require __DIR__ . '/includes/header.php';
 ?>
 
-<main class="max-w-lg mx-auto px-4 py-16">
-  <div class="bg-white border border-slate-200 rounded-lg shadow-lg p-8 text-center">
-    <p class="text-sm font-semibold uppercase tracking-wider text-gold">Instant Results</p>
-    <h1 class="font-serif text-2xl font-bold text-royal mt-2"><?= e($result['test_title']) ?></h1>
+<main class="max-w-2xl mx-auto px-4 py-12 font-telugu">
+  <?php if (!empty($result['return_url'])): ?>
+  <?php
+  $backHref = (string) $result['return_url'];
+  $backLabel = '← వెనుకకు / Back to Exams';
+  require __DIR__ . '/includes/public/views/partials/public_back_bar.php';
+  ?>
+  <?php endif; ?>
 
-    <div class="my-8">
-      <p class="text-5xl font-bold text-royal"><?= $pct ?>%</p>
-      <p class="text-slate-600 mt-2"><?= e((string) $result['score']) ?> / <?= e((string) $result['max_score']) ?> marks</p>
+  <div class="exam-scorecard bg-white border-2 border-royal rounded-2xl shadow-lg overflow-hidden">
+    <header class="bg-royal text-white px-6 py-5 text-center">
+      <p class="text-xs uppercase tracking-widest opacity-90">పరీక్ష ఫలితం / Scorecard</p>
+      <h1 class="text-xl sm:text-2xl font-bold mt-1"><?= e((string) $result['test_title']) ?></h1>
+    </header>
+
+    <div class="p-6 sm:p-8 text-center border-b border-slate-100">
+      <p class="text-6xl font-bold text-royal tabular-nums"><?= $pct ?>%</p>
+      <p class="text-slate-700 mt-2 font-semibold">
+        <?= e((string) $result['score']) ?> / <?= e((string) $result['max_score']) ?> మార్కులు
+      </p>
+      <p class="text-sm text-slate-500 mt-1">ఖచ్చితత్వం: <?= $accuracy ?>% · మొత్తం ప్రశ్నలు: <?= $totalQ ?></p>
     </div>
 
-    <div class="grid grid-cols-3 gap-4 text-sm">
-      <div class="p-3 bg-green-50 rounded"><p class="font-bold text-green-800"><?= (int) $result['correct'] ?></p><p class="text-green-700">Correct</p></div>
-      <div class="p-3 bg-red-50 rounded"><p class="font-bold text-red-800"><?= (int) $result['wrong'] ?></p><p class="text-red-700">Wrong</p></div>
-      <div class="p-3 bg-slate-50 rounded"><p class="font-bold text-slate-800"><?= (int) $result['unanswered'] ?></p><p class="text-slate-600">Skipped</p></div>
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 p-6">
+      <div class="exam-stat-pill exam-stat-pill--correct">
+        <p class="exam-stat-value"><?= (int) $result['correct'] ?></p>
+        <p class="exam-stat-label">సరైనవి</p>
+      </div>
+      <div class="exam-stat-pill exam-stat-pill--wrong">
+        <p class="exam-stat-value"><?= (int) $result['wrong'] ?></p>
+        <p class="exam-stat-label">తప్పు</p>
+      </div>
+      <div class="exam-stat-pill exam-stat-pill--skip">
+        <p class="exam-stat-value"><?= (int) $result['unanswered'] ?></p>
+        <p class="exam-stat-label">వదిలివేసినవి</p>
+      </div>
+      <div class="exam-stat-pill exam-stat-pill--time">
+        <p class="exam-stat-value"><?= (int) floor($result['time_taken'] / 60) ?>:<?= str_pad((string) ((int) $result['time_taken'] % 60), 2, '0', STR_PAD_LEFT) ?></p>
+        <p class="exam-stat-label">సమయం</p>
+      </div>
     </div>
 
-    <p class="text-xs text-slate-500 mt-6">Time taken: <?= (int) floor($result['time_taken'] / 60) ?>m <?= (int) ($result['time_taken'] % 60) ?>s</p>
-
-    <div class="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
+    <div class="px-6 pb-8 flex flex-col sm:flex-row gap-3 justify-center">
       <?php if (!empty($result['return_url'])): ?>
-      <a href="<?= e($result['return_url']) ?>" class="px-6 py-2.5 bg-royal text-white font-semibold rounded hover:bg-royal-light font-telugu">← వెనుకకు / Back</a>
+      <a href="<?= e((string) $result['return_url']) ?>" class="classical-btn-primary text-center font-telugu px-6 py-2.5">← వెనుకకు / Exams</a>
       <?php endif; ?>
-      <a href="<?= e(base_url('dashboard.php')) ?>" class="px-6 py-2.5 bg-royal text-white font-semibold rounded hover:bg-royal-light">View Dashboard</a>
-      <a href="<?= e(base_url('exams.php')) ?>" class="px-6 py-2.5 border border-royal text-royal font-semibold rounded hover:bg-gold-pale/50">More Exams</a>
+      <a href="<?= e(base_url('dashboard.php')) ?>" class="px-6 py-2.5 border-2 border-royal text-royal font-semibold rounded-lg text-center hover:bg-royal hover:text-white transition-colors">డాష్‌బోర్డ్</a>
     </div>
   </div>
 </main>

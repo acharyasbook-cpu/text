@@ -8,9 +8,7 @@
   </div>
 </footer>
 
-<?php if (!empty($view) && in_array($view, ['home', 'learn'], true)): ?>
 <script src="<?= e(base_url('assets/js/classical-media-poll.js')) ?>?v=<?= (int) @filemtime(dirname(__DIR__, 2) . '/assets/js/classical-media-poll.js') ?>"></script>
-<?php endif; ?>
 
 </body>
 </html>

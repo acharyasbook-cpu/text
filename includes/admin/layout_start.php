@@ -11,7 +11,7 @@ $error = admin_flash('error');
 
 $npMc = $navProgramme['mc'] ?? '';
 $npSc = $navProgramme['sc'] ?? '';
-$isContentHub = ($activeView === 'content');
+$isContentHub = in_array($activeView, ['content', 'schedule', 'pricing', 'whatsapp', 'analytics'], true);
 
 function admin_nav_prog_active(?array $navProgramme, string $mc, string $sc): bool
 {
@@ -27,6 +27,7 @@ function admin_nav_prog_active(?array $navProgramme, string $mc, string $sc): bo
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="csrf-token" content="<?= admin_e(admin_csrf_token()) ?>" />
   <title><?= admin_e($pageTitle) ?></title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -70,112 +71,46 @@ function admin_nav_prog_active(?array $navProgramme, string $mc, string $sc): bo
     </div>
 
     <nav class="flex-1 p-3 space-y-1 overflow-y-auto">
-      <a href="<?= admin_e(admin_dashboard_url(['view' => 'overview'])) ?>" class="admin-nav-link <?= $activeView === 'overview' ? 'admin-nav-link-active' : '' ?>">
+      <?php
+      $navClass = static function (string $view) use ($activeView, $isContentHub): string {
+          $base = $isContentHub ? 'admin-nav-link admin-nav-link-light' : 'admin-nav-link';
+          $active = $activeView === $view
+              ? ($isContentHub ? ' admin-nav-link-active-light' : ' admin-nav-link-active')
+              : '';
+          return $base . $active;
+      };
+      ?>
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'overview'])) ?>" class="<?= $navClass('overview') ?>">
         <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         Dashboard
       </a>
 
-      <a href="<?= admin_e(admin_dashboard_url(['view' => 'content'])) ?>" class="admin-nav-link <?= $isContentHub ? 'admin-nav-link-light' : '' ?> <?= $activeView === 'content' ? ($isContentHub ? 'admin-nav-link-active-light' : 'admin-nav-link-active') : '' ?>">
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'content'])) ?>" class="<?= $navClass('content') ?>">
         <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         <span class="font-telugu font-semibold">Content Manager</span>
       </a>
+      <p class="px-3 pt-1 pb-0.5 text-[10px] uppercase tracking-wider <?= $isContentHub ? 'text-slate-400' : 'text-slate-500' ?>">Main → Sub → Subject → Topic</p>
 
-      <?php if (!$isContentHub): ?>
-      <details class="group mt-1 hidden">
-        <summary class="admin-nav-link cursor-pointer list-none flex items-center gap-3 [&::-webkit-details-marker]:hidden">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2l1 2h6l1-2h2a2 2 0 012 2v12H4V6z"/></svg>
-          <span class="flex-1 text-left">AP DSC</span>
-          <svg class="w-4 h-4 opacity-60 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="mt-1 space-y-0.5 pb-2">
-          <a href="<?= admin_e(admin_programme_url('ap-dsc', 'sgt')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-dsc', 'sgt') ? 'admin-submenu-link-active' : '' ?>">SGT</a>
-          <a href="<?= admin_e(admin_programme_url('ap-dsc', 'ap-sa-telugu')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-dsc', 'ap-sa-telugu') ? 'admin-submenu-link-active' : '' ?>">SA</a>
-          <a href="<?= admin_e(admin_programme_url('ap-dsc', 'tgt')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-dsc', 'tgt') ? 'admin-submenu-link-active' : '' ?>">TGT</a>
-          <a href="<?= admin_e(admin_programme_url('ap-dsc', 'pgt')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-dsc', 'pgt') ? 'admin-submenu-link-active' : '' ?>">PGT</a>
-          <a href="<?= admin_e(admin_programme_url('ap-dsc', 'pet')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-dsc', 'pet') ? 'admin-submenu-link-active' : '' ?>">PET</a>
-        </div>
-      </details>
-
-      <details class="group mt-1 hidden">
-        <summary class="admin-nav-link cursor-pointer list-none flex items-center gap-3 [&::-webkit-details-marker]:hidden">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2l1 2h6l1-2h2a2 2 0 012 2v12H4V6z"/></svg>
-          <span class="flex-1 text-left font-telugu">TS DSC</span>
-          <svg class="w-4 h-4 opacity-60 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="mt-1 space-y-0.5 pb-2">
-          <a href="<?= admin_e(admin_programme_url('ts-dsc', 'sgt')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-dsc', 'sgt') ? 'admin-submenu-link-active' : '' ?>">SGT</a>
-          <a href="<?= admin_e(admin_programme_url('ts-dsc', 'ts-sa-telugu')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-dsc', 'ts-sa-telugu') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">School Assistant (SA)</span></a>
-          <a href="<?= admin_e(admin_programme_url('ts-dsc', 'ts-tgt-telugu')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-dsc', 'ts-tgt-telugu') ? 'admin-submenu-link-active' : '' ?>">TGT</a>
-          <a href="<?= admin_e(admin_programme_url('ts-dsc', 'ts-pgt-telugu')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-dsc', 'ts-pgt-telugu') ? 'admin-submenu-link-active' : '' ?>">PGT</a>
-          <a href="<?= admin_e(admin_programme_url('ts-dsc', 'pet')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-dsc', 'pet') ? 'admin-submenu-link-active' : '' ?>">PET</a>
-        </div>
-      </details>
-
-      <a href="<?= admin_e(admin_dashboard_url(['view' => 'hierarchy'])) ?>" class="admin-nav-link <?= $activeView === 'hierarchy' ? 'admin-nav-link-active' : '' ?>">
-        <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13"/></svg>
-        Roots
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'schedule'])) ?>" class="<?= $navClass('schedule') ?>">
+        <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span class="font-telugu">Schedule Test</span>
       </a>
 
-      <a href="<?= admin_e(admin_dashboard_url(['view' => 'courses'])) ?>" class="admin-nav-link <?= $activeView === 'courses' ? 'admin-nav-link-active' : '' ?>">
-        <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
-        Author
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'pricing'])) ?>" class="<?= $navClass('pricing') ?>">
+        <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Pricing
       </a>
 
-      <details class="group mt-1 hidden">
-        <summary class="admin-nav-link cursor-pointer list-none flex items-center gap-3 [&::-webkit-details-marker]:hidden">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          <span class="flex-1 text-left font-telugu">ఏపీ టెట్</span>
-          <svg class="w-4 h-4 opacity-60 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="mt-1 space-y-0.5 pb-2">
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-paper-1')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-paper-1') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 1</span></a>
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-paper-1-special')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-paper-1-special') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 1 స్పెషల్</span></a>
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-p2-telugu')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-p2-telugu') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 తెలుగు</span></a>
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-p2-english')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-p2-english') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 ఇంగ్లీష్</span></a>
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-p2-hindi')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-p2-hindi') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 హిందీ</span></a>
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-p2-maths-science')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-p2-maths-science') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 మ్యాథ్స్ &amp; సైన్స్</span></a>
-          <a href="<?= admin_e(admin_programme_url('ap-tet', 'ap-tet-p2-social')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ap-tet', 'ap-tet-p2-social') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 సోషల్ స్టడీస్</span></a>
-        </div>
-      </details>
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'whatsapp'])) ?>" class="<?= $navClass('whatsapp') ?>">
+        <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/></svg>
+        WhatsApp
+      </a>
 
-      <details class="group mt-1 hidden">
-        <summary class="admin-nav-link cursor-pointer list-none flex items-center gap-3 [&::-webkit-details-marker]:hidden">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          <span class="flex-1 text-left font-telugu">టీఎస్ టెట్</span>
-          <svg class="w-4 h-4 opacity-60 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="mt-1 space-y-0.5 pb-2">
-          <a href="<?= admin_e(admin_programme_url('ts-tet', 'ts-tet-paper-1')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-tet', 'ts-tet-paper-1') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 1</span></a>
-          <a href="<?= admin_e(admin_programme_url('ts-tet', 'ts-tet-p2-maths-science')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-tet', 'ts-tet-p2-maths-science') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 — మ్యాథమెటిక్స్ &amp; సైన్స్</span></a>
-          <a href="<?= admin_e(admin_programme_url('ts-tet', 'ts-tet-p2-social-studies')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ts-tet', 'ts-tet-p2-social-studies') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 — సోషల్ స్టడీస్</span></a>
-        </div>
-      </details>
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'analytics'])) ?>" class="<?= $navClass('analytics') ?>">
+        <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Users Analysis
+      </a>
 
-      <details class="group mt-1 hidden">
-        <summary class="admin-nav-link cursor-pointer list-none flex items-center gap-3 [&::-webkit-details-marker]:hidden">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0v6"/></svg>
-          <span class="flex-1 text-left font-telugu">సీటెట్</span>
-          <svg class="w-4 h-4 opacity-60 group-open:rotate-180 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </summary>
-        <div class="mt-1 space-y-0.5 pb-2">
-          <a href="<?= admin_e(admin_programme_url('ctet', 'ctet-paper-1')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ctet', 'ctet-paper-1') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 1</span></a>
-          <a href="<?= admin_e(admin_programme_url('ctet', 'ctet-p2-maths-science')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ctet', 'ctet-p2-maths-science') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 — మ్యాథ్స్ &amp; సైన్స్</span></a>
-          <a href="<?= admin_e(admin_programme_url('ctet', 'ctet-p2-social-studies')) ?>" class="admin-submenu-link <?= admin_nav_prog_active($navProgramme, 'ctet', 'ctet-p2-social-studies') ? 'admin-submenu-link-active' : '' ?>"><span class="font-telugu">పేపర్ 2 — సోషల్ స్టడీస్</span></a>
-        </div>
-      </details>
-
-      <?php endif; ?>
-
-      <div class="pt-4 mt-2 border-t <?= $isContentHub ? 'border-[#E3E6F0]' : 'border-white/5' ?> space-y-1">
-        <a href="<?= admin_e(admin_dashboard_url(['view' => 'exams'])) ?>" class="admin-nav-link <?= $activeView === 'exams' ? 'admin-nav-link-active' : '' ?>">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-          Exams
-        </a>
-        <a href="<?= admin_e(admin_dashboard_url(['view' => 'students'])) ?>" class="admin-nav-link <?= $activeView === 'students' ? 'admin-nav-link-active' : '' ?>">
-          <svg class="w-5 h-5 shrink-0 opacity-90" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197"/></svg>
-          Students
-        </a>
-      </div>
     </nav>
 
     <div class="p-3 border-t border-white/5 flex items-center justify-between gap-2">

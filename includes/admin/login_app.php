@@ -18,8 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $admin = (new AdminRepository())->verifyAdmin($email, $password);
     if ($admin) {
-        session_regenerate_id(true);
-        $_SESSION['admin'] = $admin;
+        AdminAuthController::establishSession($admin);
         admin_redirect(admin_dashboard_path());
     }
     $error = 'Invalid administrator credentials.';

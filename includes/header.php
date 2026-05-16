@@ -4,6 +4,10 @@
 $activeNav = $activeNav ?? '';
 $showMega = $showMega ?? true;
 $user = current_user();
+require_once __DIR__ . '/public_site_helpers.php';
+$logoPath = (new PlatformRepository())->logoPath();
+$logoUrl = $logoPath ? public_media_url($logoPath) : null;
+$logoVer = public_media_cache_version($logoPath);
 $coursesMega = [];
 if ($showMega) {
     try {
@@ -16,9 +20,18 @@ if ($showMega) {
 <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b-2 border-gold/30 shadow-sm">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
     <div class="flex items-center justify-between h-16 lg:h-[4.25rem] gap-4">
-      <a href="<?= e(base_url('index.php')) ?>" class="shrink-0 group">
-        <span class="font-serif text-2xl lg:text-3xl font-bold text-royal group-hover:text-royal-light transition-colors">Acharya Books</span>
-        <span class="font-telugu hidden sm:block text-xs text-gold font-medium">మీ విజయానికి సరైన మార్గం</span>
+      <a href="<?= e(base_url('index.php')) ?>" class="shrink-0 group flex items-center gap-3 min-w-0">
+        <span class="w-11 h-11 lg:w-12 lg:h-12 rounded-full border-2 border-gold/40 bg-white flex items-center justify-center overflow-hidden shrink-0 shadow-sm">
+          <?php if ($logoUrl): ?>
+          <img src="<?= e($logoUrl) ?>?v=<?= (int) $logoVer ?>" alt="" id="siteLogoImg" class="w-full h-full object-contain p-0.5" />
+          <?php else: ?>
+          <span class="font-telugu text-lg font-bold text-royal" id="siteLogoImg" aria-hidden="true">ఆ</span>
+          <?php endif; ?>
+        </span>
+        <span class="min-w-0">
+          <span class="font-serif text-2xl lg:text-3xl font-bold text-royal group-hover:text-royal-light transition-colors block leading-tight">Acharya Books</span>
+          <span class="font-telugu hidden sm:block text-xs text-gold font-medium">మీ విజయానికి సరైన మార్గం</span>
+        </span>
       </a>
 
       <nav class="hidden lg:flex items-center gap-1 flex-1 justify-center" aria-label="Main">

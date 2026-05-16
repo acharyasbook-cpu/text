@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $view = $_GET['view'] ?? 'overview';
-$allowed = ['overview', 'hierarchy', 'courses', 'exams', 'students', 'programme', 'content'];
+$allowed = ['overview', 'content', 'schedule', 'pricing', 'whatsapp', 'analytics', 'hierarchy', 'courses', 'exams', 'students', 'programme'];
 if (!in_array($view, $allowed, true)) {
     $view = 'overview';
 }
@@ -24,12 +24,16 @@ $navProgramme = null;
 $repo = new AdminRepository();
 $titles = [
     'overview'  => 'Dashboard Overview',
+    'content'   => 'Content Manager',
+    'schedule'  => 'Schedule Test',
+    'pricing'   => 'Pricing & Gateways',
+    'whatsapp'  => 'WhatsApp Hub',
+    'analytics' => 'Users Analysis',
     'hierarchy' => 'Hierarchy & Live / Draft',
     'courses'   => 'Course & Subject Management',
     'exams'     => 'Exam & MCQ Manager',
     'students'  => 'Students & Subscriptions',
     'programme' => 'Programme Workspace',
-    'content'   => 'Content Manager',
 ];
 
 $pageTitle = $titles[$view] . ' | Admin';
@@ -90,6 +94,18 @@ switch ($view) {
         break;
     case 'content':
         require ACHARYA_ROOT . '/includes/admin/views/content_manager.php';
+        break;
+    case 'schedule':
+        require ACHARYA_ROOT . '/includes/admin/views/schedule_test.php';
+        break;
+    case 'pricing':
+        require ACHARYA_ROOT . '/includes/admin/views/pricing.php';
+        break;
+    case 'whatsapp':
+        require ACHARYA_ROOT . '/includes/admin/views/whatsapp.php';
+        break;
+    case 'analytics':
+        require ACHARYA_ROOT . '/includes/admin/views/analytics.php';
         break;
     default:
         $dash = $repo->dashboardStats();

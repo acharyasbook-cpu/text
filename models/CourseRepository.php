@@ -6,16 +6,21 @@ class CourseRepository
 {
     public function allActive(): array
     {
-        $w = SchemaHelper::coursesHasStatus() ? 'status = 1' : 'is_active = 1';
-        $stmt = db()->query("SELECT * FROM courses WHERE {$w} ORDER BY sort_order, name");
+        SchemaHelper::ensureCoursesViewIncludesImagePath();
+        $table = SchemaHelper::publicMainCoursesTable();
+        $w = SchemaHelper::coursesHasStatus() ? 'COALESCE(status, is_active, 1) = 1' : 'is_active = 1';
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
+        $stmt = db()->query("SELECT * FROM `{$table}` WHERE {$w} ORDER BY {$order}");
 
         return $stmt->fetchAll();
     }
 
     public function findBySlug(string $slug): ?array
     {
-        $w = SchemaHelper::coursesHasStatus() ? 'status = 1' : 'is_active = 1';
-        $stmt = db()->prepare("SELECT * FROM courses WHERE slug = ? AND {$w}");
+        SchemaHelper::ensureCoursesViewIncludesImagePath();
+        $table = SchemaHelper::publicMainCoursesTable();
+        $w = SchemaHelper::coursesHasStatus() ? 'COALESCE(status, is_active, 1) = 1' : 'is_active = 1';
+        $stmt = db()->prepare("SELECT * FROM `{$table}` WHERE slug = ? AND {$w}");
         $stmt->execute([$slug]);
         $row = $stmt->fetch();
 
@@ -28,8 +33,12 @@ class CourseRepository
         if (!SchemaHelper::hierarchyFourTier()) {
             return [];
         }
-        $w = SchemaHelper::columnExists('sub_courses', 'status') ? 'status = 1 AND is_active = 1' : 'is_active = 1';
-        $stmt = db()->prepare("SELECT * FROM sub_courses WHERE course_id = ? AND {$w} ORDER BY sort_order, name");
+        $courseId = SchemaHelper::resolveCatalogCourseId($courseId);
+        $w = SchemaHelper::columnExists('sub_courses', 'status')
+            ? 'COALESCE(status, is_active, 1) = 1'
+            : 'is_active = 1';
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
+        $stmt = db()->prepare("SELECT * FROM sub_courses WHERE course_id = ? AND {$w} ORDER BY {$order}");
         $stmt->execute([$courseId]);
 
         return $stmt->fetchAll();
@@ -40,8 +49,10 @@ class CourseRepository
         if (!SchemaHelper::hierarchyFourTier()) {
             return null;
         }
-        $cLive = SchemaHelper::coursesHasStatus() ? 'c.status = 1' : 'c.is_active = 1';
-        $scLive = SchemaHelper::columnExists('sub_courses', 'status') ? 'sc.status = 1 AND sc.is_active = 1' : 'sc.is_active = 1';
+        $cLive = SchemaHelper::coursesHasStatus() ? 'COALESCE(c.status, c.is_active, 1) = 1' : 'c.is_active = 1';
+        $scLive = SchemaHelper::columnExists('sub_courses', 'status')
+            ? 'COALESCE(sc.status, sc.is_active, 1) = 1'
+            : 'sc.is_active = 1';
         $sql = "SELECT sc.*, c.slug AS course_slug, c.name AS course_name, c.name_te AS course_name_te
             FROM sub_courses sc JOIN courses c ON c.id = sc.course_id
             WHERE c.slug = ? AND sc.slug = ? AND {$cLive} AND {$scLive}";
@@ -86,7 +97,7 @@ class CourseRepository
                 JOIN sub_course_subjects scs ON scs.subject_id = s.id AND {$pcs}
                 JOIN sub_courses sc ON sc.id = scs.sub_course_id AND {$scCol}
                 WHERE sc.course_id = ? AND {$sLive}
-                ORDER BY sc.sort_order, s.sort_order, s.name";
+                ORDER BY sc.sort_order ASC, s.sort_order ASC, s.id ASC";
             $stmt = db()->prepare($sql);
             $stmt->execute([$courseId]);
 
@@ -98,7 +109,7 @@ class CourseRepository
         if (!SchemaHelper::hasTable('course_categories')) {
             $stmt = db()->prepare(
                 "SELECT s.*, NULL AS category_slug, NULL AS category_name FROM subjects s
-                WHERE s.course_id = ? AND {$sLive} ORDER BY s.sort_order, s.name"
+                WHERE s.course_id = ? AND {$sLive} ORDER BY s.sort_order ASC, s.id ASC"
             );
             $stmt->execute([$courseId]);
 
@@ -286,7 +297,8 @@ class CourseRepository
     {
         $t = SchemaHelper::topicsTable();
         $live = SchemaHelper::columnExists($t, 'status') ? ' AND status = 1' : '';
-        $stmt = db()->prepare("SELECT * FROM `{$t}` WHERE subject_id = ?{$live} ORDER BY sort_order, title");
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
+        $stmt = db()->prepare("SELECT * FROM `{$t}` WHERE subject_id = ?{$live} ORDER BY {$order}");
         $stmt->execute([$subjectId]);
 
         return $stmt->fetchAll();
@@ -392,6 +404,68 @@ class CourseRepository
         return trim((string) ($topic['notes_content'] ?? $topic['content'] ?? ''));
     }
 
+    public function topicMcqForDisplay(array $topic): string
+    {
+        if (SchemaHelper::topicMcqContentEnabled()) {
+            return trim((string) ($topic['mcq_content'] ?? ''));
+        }
+
+        return '';
+    }
+
+    public function topicNotesPlaceholder(array $topic): string
+    {
+        $te = trim((string) ($topic['title_te'] ?? ''));
+        $en = trim((string) ($topic['title'] ?? 'Topic'));
+        $label = $te !== '' ? $te : $en;
+
+        return "📘 {$label}\n\nఈ టాపిక్ కోసం సంక్షిప్త స్టడీ మెటీరియల్ త్వరలో జోడించబడుతుంది. ముఖ్య అంశాలు, నిర్వచనాలు మరియు పరీక్షకు సంబంధించిన కీ పాయింట్లు ఇక్కడ కనిపిస్తాయి.";
+    }
+
+    /**
+     * @param list<array<string,mixed>> $topics
+     * @return list<array<string,mixed>>
+     */
+    public function enrichTopicsForSubjectWorkspace(
+        array $topics,
+        array $subject,
+        bool $programmeHasAccess
+    ): array {
+        $courseSlug = (string) ($subject['course_slug'] ?? '');
+        $subSlug = $subject['sub_course_slug'] ?? null;
+        $subjectSlug = (string) ($subject['slug'] ?? '');
+        $out = [];
+
+        foreach ($topics as $topic) {
+            $locked = !$programmeHasAccess && empty($topic['is_free_preview']);
+            $notesText = $this->topicNotesForDisplay($topic);
+            $mcqText = $this->topicMcqForDisplay($topic);
+            $suite = $this->examSuiteTestsForTopic((int) ($topic['id'] ?? 0));
+            $notesPreview = $notesText !== '' ? $notesText : $this->topicNotesPlaceholder($topic);
+            $hasNotes = !$locked;
+            $hasExam = (!$locked && ($mcqText !== '' || $suite !== []));
+
+            $out[] = $topic + [
+                'workspace_locked' => $locked,
+                'has_notes' => $hasNotes,
+                'has_exam' => $hasExam,
+                'notes_preview' => mb_substr(strip_tags($notesPreview), 0, 160),
+                'notes_url' => $hasNotes
+                    ? public_topic_notes_url($courseSlug, $subSlug !== '' ? (string) $subSlug : null, $subjectSlug, (string) $topic['slug'])
+                    : null,
+                'exam_suite' => $suite,
+                'exam_return_path' => public_subject_exam_return_path(
+                    $courseSlug,
+                    $subSlug !== '' ? (string) $subSlug : null,
+                    $subjectSlug
+                ),
+                'mcq_preview' => $mcqText !== '' ? mb_substr($mcqText, 0, 120) : '',
+            ];
+        }
+
+        return $out;
+    }
+
     /** @return list<array<string,mixed>> */
     public function examSuiteTestsForTopic(int $topicId): array
     {
@@ -422,6 +496,71 @@ class CourseRepository
         $stmt->execute([$subCourseId]);
 
         return $stmt->fetchAll();
+    }
+
+    /** @return array{subjects:int,topics:int,tests:int,materials:int} */
+    public function programmeStatsForSubCourse(int $subCourseId): array
+    {
+        $stats = ['subjects' => 0, 'topics' => 0, 'tests' => 0, 'materials' => 0];
+        if ($subCourseId < 1) {
+            return $stats;
+        }
+
+        $subjects = $this->subjectsForSubCourse($subCourseId);
+        $stats['subjects'] = count($subjects);
+        $subjectIds = array_map(static fn (array $s): int => (int) $s['id'], $subjects);
+        if ($subjectIds === []) {
+            return $stats;
+        }
+
+        $placeholders = implode(',', array_fill(0, count($subjectIds), '?'));
+        $tcol = SchemaHelper::topicsTable();
+        $tLive = SchemaHelper::columnExists($tcol, 'status') ? ' AND status = 1' : '';
+        $st = db()->prepare("SELECT COUNT(*) FROM `{$tcol}` WHERE subject_id IN ({$placeholders}){$tLive}");
+        $st->execute($subjectIds);
+        $stats['topics'] = (int) $st->fetchColumn();
+
+        $testLive = SchemaHelper::testsHasStatus() ? 'status = 1 AND is_active = 1' : 'is_active = 1';
+        $st2 = db()->prepare("SELECT COUNT(*) FROM tests WHERE subject_id IN ({$placeholders}) AND {$testLive}");
+        $st2->execute($subjectIds);
+        $stats['tests'] = (int) $st2->fetchColumn();
+
+        if (SchemaHelper::hasTable('study_materials')) {
+            $fk = SchemaHelper::materialsTopicFkColumn();
+            $st3 = db()->prepare("SELECT COUNT(*) FROM study_materials WHERE subject_id IN ({$placeholders})");
+            $st3->execute($subjectIds);
+            $stats['materials'] = (int) $st3->fetchColumn();
+        }
+
+        return $stats;
+    }
+
+    /** @return array{topics:int,tests:int,materials:int} */
+    public function programmeStatsForSubject(int $subjectId): array
+    {
+        $stats = ['topics' => 0, 'tests' => 0, 'materials' => 0];
+        if ($subjectId < 1) {
+            return $stats;
+        }
+
+        $tcol = SchemaHelper::topicsTable();
+        $tLive = SchemaHelper::columnExists($tcol, 'status') ? ' AND status = 1' : '';
+        $st = db()->prepare("SELECT COUNT(*) FROM `{$tcol}` WHERE subject_id = ?{$tLive}");
+        $st->execute([$subjectId]);
+        $stats['topics'] = (int) $st->fetchColumn();
+
+        $testLive = SchemaHelper::testsHasStatus() ? 'status = 1 AND is_active = 1' : 'is_active = 1';
+        $st2 = db()->prepare("SELECT COUNT(*) FROM tests WHERE subject_id = ? AND {$testLive}");
+        $st2->execute([$subjectId]);
+        $stats['tests'] = (int) $st2->fetchColumn();
+
+        if (SchemaHelper::hasTable('study_materials')) {
+            $st3 = db()->prepare('SELECT COUNT(*) FROM study_materials WHERE subject_id = ?');
+            $st3->execute([$subjectId]);
+            $stats['materials'] = (int) $st3->fetchColumn();
+        }
+
+        return $stats;
     }
 
     public function allPlansWithContext(): array
@@ -469,7 +608,7 @@ class CourseRepository
     {
         $courses = $this->allActive();
         foreach ($courses as &$course) {
-            $cid = (int) $course['id'];
+            $cid = SchemaHelper::resolveCatalogCourseId((int) $course['id']);
             if (SchemaHelper::hierarchyFourTier()) {
                 $course['programmes'] = [];
                 foreach ($this->subCoursesForCourse($cid) as $sc) {

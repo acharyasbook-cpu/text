@@ -66,6 +66,44 @@ function flash(string $key, ?string $message = null): ?string
     return $msg;
 }
 
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(16));
+    }
+
+    return (string) $_SESSION['csrf_token'];
+}
+
+function csrf_field(): string
+{
+    return '<input type="hidden" name="_csrf" value="' . e(csrf_token()) . '" />';
+}
+
+function verify_csrf(?string $token): void
+{
+    $expected = $_SESSION['csrf_token'] ?? '';
+    if ($expected === '' || $token === null || !hash_equals($expected, $token)) {
+        throw new InvalidArgumentException('Security token expired. Please try again.');
+    }
+}
+
+function safe_return_path(?string $return): string
+{
+    $return = trim((string) $return);
+    if ($return === '' || str_contains($return, '://') || str_starts_with($return, '//')) {
+        return '';
+    }
+    if ($return[0] !== '/') {
+        $return = '/' . $return;
+    }
+    if (str_contains($return, '..')) {
+        return '';
+    }
+
+    return $return;
+}
+
 /** @return PDO */
 function db(): PDO
 {
@@ -74,6 +112,7 @@ function db(): PDO
     return getDBConnection();
 }
 
+require_once dirname(__DIR__) . '/includes/ImageUploadService.php';
 require_once dirname(__DIR__) . '/models/SchemaHelper.php';
 
 require_once dirname(__DIR__) . '/models/CourseRepository.php';
@@ -83,4 +122,7 @@ require_once dirname(__DIR__) . '/models/SubscriptionRepository.php';
 require_once dirname(__DIR__) . '/models/PlatformRepository.php';
 require_once dirname(__DIR__) . '/models/StudentAnalyticsRepository.php';
 require_once dirname(__DIR__) . '/models/AdminRepository.php';
+require_once dirname(__DIR__) . '/models/ContentOrderRepository.php';
+require_once dirname(__DIR__) . '/models/SubjectTermMatrixRepository.php';
+require_once dirname(__DIR__) . '/models/SubjectScheduleService.php';
 require_once dirname(__DIR__) . '/controllers/HeaderController.php';

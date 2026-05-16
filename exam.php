@@ -101,6 +101,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_exam'])) {
     }
 }
 
+$returnPath = trim((string) ($_GET['return'] ?? ''));
+$returnUrl = '';
+if ($returnPath !== '' && !preg_match('#^https?://#i', $returnPath)) {
+    $returnUrl = base_url(ltrim($returnPath, '/'));
+}
+
 $pageTitle = $test['title'] . ' | Exam';
 $activeNav = 'exams';
 $durationSecs = (int) $test['duration_mins'] * 60;
@@ -109,6 +115,13 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+  <?php if ($returnUrl !== ''): ?>
+  <?php
+  $backHref = $returnUrl;
+  $backLabel = '← వెనుకకు / Back to Exams';
+  require __DIR__ . '/includes/public/views/partials/public_back_bar.php';
+  ?>
+  <?php endif; ?>
   <div class="bg-white border border-slate-200 rounded-lg shadow-sm sticky top-20 z-40 p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="font-semibold text-royal"><?= e($test['title']) ?></h1>
@@ -126,8 +139,8 @@ require __DIR__ . '/includes/header.php';
   <form id="examForm" method="post" class="space-y-8">
     <input type="hidden" name="submit_exam" value="1" />
     <input type="hidden" name="time_taken" id="timeTaken" value="0" />
-    <?php if (!empty($_GET['return'])): ?>
-    <input type="hidden" name="return_url" value="<?= e((string) $_GET['return']) ?>" />
+    <?php if ($returnPath !== ''): ?>
+    <input type="hidden" name="return_url" value="<?= e($returnPath) ?>" />
     <?php endif; ?>
 
     <?php foreach ($questions as $idx => $q): ?>

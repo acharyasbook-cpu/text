@@ -21,7 +21,13 @@ if (!function_exists('db')) {
     }
 }
 
+require_once dirname(__DIR__, 2) . '/includes/ImageUploadService.php';
+require_once dirname(__DIR__, 2) . '/includes/public_site_helpers.php';
+require_once dirname(__DIR__, 2) . '/controllers/AdminAuthController.php';
+require_once dirname(__DIR__, 2) . '/controllers/ContentManagerController.php';
 require_once dirname(__DIR__, 2) . '/models/SchemaHelper.php';
+
+ImageUploadService::ensureStorageRoots();
 
 date_default_timezone_set('Asia/Kolkata');
 
@@ -51,6 +57,19 @@ function admin_logout_path(): string
 }
 
 /** Public site URL (project root), not under /admin/. */
+/** Public asset URL from admin panel (no Laravel — uses site root). */
+function admin_media_url(?string $path): string
+{
+    if ($path === null || $path === '') {
+        return '';
+    }
+    if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+        return $path;
+    }
+
+    return admin_site_url(ltrim($path, '/'));
+}
+
 function admin_site_url(string $path = ''): string
 {
   $path = ltrim($path, '/');
@@ -76,6 +95,7 @@ function admin_url(string $path = ''): string
       'admin_dashboard.php' => 'dashboard.php',
       'admin_login.php' => 'login.php',
       'admin_logout.php' => 'logout.php',
+      'admin_actions.php' => 'actions.php',
     ];
     if (isset($legacy[$path])) {
       $path = $legacy[$path];
@@ -116,12 +136,19 @@ function admin_user(): ?array
 
 function require_admin(): array
 {
-    $admin = admin_user();
-    if (!$admin || ($admin['role'] ?? '') !== 'admin') {
-        admin_redirect(admin_login_path());
-    }
+    return AdminAuthController::requireAdminWeb();
+}
 
-    return $admin;
+function admin_csrf_token(): string
+{
+    return AdminAuthController::csrfToken();
+}
+
+function admin_csrf_field(): string
+{
+    $t = admin_csrf_token();
+
+    return '<input type="hidden" name="_csrf" value="' . admin_e($t) . '" />';
 }
 
 function admin_flash(string $key, ?string $message = null): ?string
@@ -145,5 +172,16 @@ function slugify(string $text): string
     return trim($text, '-');
 }
 
+require_once dirname(__DIR__, 2) . '/models/TestRepository.php';
+require_once dirname(__DIR__, 2) . '/models/SubscriptionRepository.php';
+require_once dirname(__DIR__, 2) . '/models/AnalyticsRepository.php';
+require_once dirname(__DIR__, 2) . '/controllers/AnalyticsController.php';
 require_once dirname(__DIR__, 2) . '/models/AdminRepository.php';
+require_once dirname(__DIR__, 2) . '/models/ContentOrderRepository.php';
 require_once dirname(__DIR__, 2) . '/models/PlatformRepository.php';
+require_once dirname(__DIR__, 2) . '/models/SubjectTermMatrixRepository.php';
+require_once dirname(__DIR__, 2) . '/models/SubjectScheduleService.php';
+require_once dirname(__DIR__, 2) . '/models/CourseRepository.php';
+require_once dirname(__DIR__, 2) . '/services/WhatsAppDispatchService.php';
+require_once dirname(__DIR__, 2) . '/models/WhatsAppHubRepository.php';
+require_once dirname(__DIR__, 2) . '/controllers/WhatsAppHubController.php';

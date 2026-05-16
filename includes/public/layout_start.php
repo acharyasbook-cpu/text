@@ -44,7 +44,7 @@ $user = $header['user'];
     <a href="<?= e(base_url('index.php')) ?>" class="flex items-center gap-3 group min-w-0">
       <span class="classical-logo-ring shrink-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-royal/30 bg-white flex items-center justify-center overflow-hidden shadow-sm">
         <?php if (!empty($header['logo_url'])): ?>
-        <img src="<?= e($header['logo_url']) ?>?v=<?= e((string) time()) ?>" alt="" class="w-full h-full object-cover" id="siteLogoImg" />
+        <img src="<?= e($header['logo_url']) ?>?v=<?= (int) ($header['logo_cache_v'] ?? 0) ?>" alt="" class="w-full h-full object-contain p-0.5" id="siteLogoImg" />
         <?php else: ?>
         <span class="text-lg font-bold text-royal">ఆ</span>
         <?php endif; ?>

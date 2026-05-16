@@ -13,14 +13,6 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$adminUser = admin_user();
-if (!$adminUser || ($adminUser['role'] ?? '') !== 'admin') {
-    http_response_code(401);
-    echo json_encode(['ok' => false, 'error' => 'Unauthorized']);
-
-    exit;
-}
-
 $raw = file_get_contents('php://input') ?: '';
 $data = json_decode($raw, true);
 if (!is_array($data)) {
@@ -29,6 +21,8 @@ if (!is_array($data)) {
 
     exit;
 }
+
+AdminAuthController::requireAdminApi(true, $data);
 
 $status = !empty($data['status']);
 $repo = new AdminRepository();

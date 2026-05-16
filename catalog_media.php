@@ -20,7 +20,7 @@ $mapRow = static function (array $row): array {
     return [
         'id' => (int) $row['id'],
         'image_path' => $path,
-        'url' => $path !== '' ? public_media_url($path) : '',
+        'url' => $path !== '' ? acharya_media_url($path) : '',
         'v' => $v,
     ];
 };
@@ -33,7 +33,7 @@ if ($scope === 'logo') {
     $abs = $path !== '' ? ACHARYA_ROOT . '/' . ltrim($path, '/') : '';
     echo json_encode([
         'logo_path' => $path,
-        'url' => $path !== '' ? public_media_url($path) : '',
+        'url' => $path !== '' ? acharya_media_url($path) : '',
         'v' => ($abs !== '' && is_file($abs)) ? (int) filemtime($abs) : 0,
     ], JSON_THROW_ON_ERROR);
     exit;

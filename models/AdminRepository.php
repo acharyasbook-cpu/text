@@ -49,7 +49,9 @@ class AdminRepository
 
     public function allCourses(): array
     {
-        return db()->query('SELECT * FROM courses ORDER BY sort_order, name')->fetchAll();
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
+
+        return db()->query("SELECT * FROM courses ORDER BY {$order}, name")->fetchAll();
     }
 
     public function saveCourse(array $data, ?int $id = null): int
@@ -95,6 +97,29 @@ class AdminRepository
 
     public function deleteCourse(int $id): void
     {
+        if ($id < 1) {
+            return;
+        }
+        if (SchemaHelper::hierarchyFourTier()) {
+            $st = db()->prepare('SELECT id FROM sub_courses WHERE course_id=?');
+            $st->execute([$id]);
+            foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $scid) {
+                $this->deleteSubCourse((int) $scid);
+            }
+        }
+        $st = db()->prepare('SELECT id FROM subjects WHERE course_id=?');
+        $st->execute([$id]);
+        foreach ($st->fetchAll(PDO::FETCH_COLUMN) as $sid) {
+            $this->deleteSubject((int) $sid);
+        }
+        if (SchemaHelper::hasTable('main_courses')) {
+            $slugSt = db()->prepare('SELECT slug FROM courses WHERE id=? LIMIT 1');
+            $slugSt->execute([$id]);
+            $slug = $slugSt->fetchColumn();
+            if (is_string($slug) && $slug !== '') {
+                db()->prepare('DELETE FROM main_courses WHERE slug=?')->execute([$slug]);
+            }
+        }
         db()->prepare('DELETE FROM courses WHERE id=?')->execute([$id]);
     }
 
@@ -133,14 +158,28 @@ class AdminRepository
             return;
         }
         db()->prepare('DELETE FROM sub_course_subjects WHERE subject_id=?')->execute([$subjectId]);
-        $ins = db()->prepare('INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order, status, is_active) VALUES (?,?,?,1,1)');
+        $hasStatus = SchemaHelper::columnExists('sub_course_subjects', 'status');
+        $hasActive = SchemaHelper::columnExists('sub_course_subjects', 'is_active');
+        if ($hasStatus && $hasActive) {
+            $ins = db()->prepare(
+                'INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order, status, is_active) VALUES (?,?,?,1,1)'
+            );
+        } elseif ($hasActive) {
+            $ins = db()->prepare(
+                'INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order, is_active) VALUES (?,?,?,1)'
+            );
+        } else {
+            $ins = db()->prepare(
+                'INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order) VALUES (?,?,?)'
+            );
+        }
         $sort = 0;
         foreach ($subCourseIds as $scid) {
-            $sid = (int) $scid;
-            if ($sid < 1) {
+            $subCourseId = (int) $scid;
+            if ($subCourseId < 1) {
                 continue;
             }
-            $ins->execute([$sid, $subjectId, $sort]);
+            $ins->execute([$subCourseId, $subjectId, $sort]);
             ++$sort;
         }
 
@@ -266,6 +305,18 @@ class AdminRepository
 
     public function deleteSubject(int $id): void
     {
+        if ($id < 1) {
+            return;
+        }
+        $tbl = SchemaHelper::topicsTable();
+        $tSt = db()->prepare("SELECT id FROM `{$tbl}` WHERE subject_id=?");
+        $tSt->execute([$id]);
+        foreach ($tSt->fetchAll(PDO::FETCH_COLUMN) as $tid) {
+            $this->cmDeleteTopic((int) $tid);
+        }
+        if (SchemaHelper::hasTable('study_materials')) {
+            db()->prepare('DELETE FROM study_materials WHERE subject_id=?')->execute([$id]);
+        }
         if (SchemaHelper::hierarchyFourTier()) {
             db()->prepare('DELETE FROM sub_course_subjects WHERE subject_id=?')->execute([$id]);
         }
@@ -319,6 +370,21 @@ class AdminRepository
 
     public function deleteSubCourse(int $id): void
     {
+        if ($id < 1) {
+            return;
+        }
+        if (SchemaHelper::hasTable('sub_course_subjects')) {
+            db()->prepare('DELETE FROM sub_course_subjects WHERE sub_course_id=?')->execute([$id]);
+        }
+        if (SchemaHelper::hasTable('sub_course_plans')) {
+            db()->prepare('DELETE FROM sub_course_plans WHERE sub_course_id=?')->execute([$id]);
+        }
+        if (SchemaHelper::hasTable('sub_course_term_boxes')) {
+            db()->prepare('DELETE FROM sub_course_term_boxes WHERE sub_course_id=?')->execute([$id]);
+        }
+        if (SchemaHelper::hasTable('sub_course_term_schedule')) {
+            db()->prepare('DELETE FROM sub_course_term_schedule WHERE sub_course_id=?')->execute([$id]);
+        }
         db()->prepare('DELETE FROM sub_courses WHERE id=?')->execute([$id]);
     }
 
@@ -1188,20 +1254,48 @@ class AdminRepository
 
     public function handleUpload(string $field, string $subdir): ?string
     {
+        if (empty($_FILES[$field]['name'])) {
+            return null;
+        }
+
+        if ($subdir === 'branding') {
+            return ImageUploadService::storeFromFileArray(
+                $_FILES[$field],
+                ImageUploadService::PURPOSE_BRANDING,
+                null
+            );
+        }
+
+        if (in_array($subdir, ['course', 'sub_course', 'subject'], true)) {
+            return ImageUploadService::storeFromFileArray(
+                $_FILES[$field],
+                ImageUploadService::PURPOSE_COVER,
+                $subdir
+            );
+        }
+
+        return $this->handleLegacyUpload($field, $subdir);
+    }
+
+    private function handleLegacyUpload(string $field, string $subdir): ?string
+    {
         if (empty($_FILES[$field]['name']) || $_FILES[$field]['error'] !== UPLOAD_ERR_OK) {
             return null;
         }
-        $dir = dirname(__DIR__) . '/uploads/' . $subdir;
+        $safe = preg_replace('/[^a-z0-9_-]/', '', strtolower($subdir)) ?: 'misc';
+        $dir = dirname(__DIR__) . '/uploads/' . $safe;
         if (!is_dir($dir)) {
             mkdir($dir, 0775, true);
         }
-        $ext = pathinfo($_FILES[$field]['name'], PATHINFO_EXTENSION);
-        $name = uniqid('file_', true) . ($ext ? '.' . $ext : '');
+        $ext = strtolower(pathinfo((string) $_FILES[$field]['name'], PATHINFO_EXTENSION));
+        $name = uniqid('file_', true) . ($ext !== '' ? '.' . $ext : '');
         $dest = $dir . '/' . $name;
         if (!move_uploaded_file($_FILES[$field]['tmp_name'], $dest)) {
             return null;
         }
-        return 'uploads/' . $subdir . '/' . $name;
+        @chmod($dest, 0644);
+
+        return 'uploads/' . $safe . '/' . $name;
     }
 
     // ─── Content Manager (4-tier cascade + topic notes / sub-topics) ───
@@ -1209,12 +1303,22 @@ class AdminRepository
     /** @return list<array<string,mixed>> */
     public function contentManagerMainCourses(): array
     {
-        $live = SchemaHelper::coursesHasStatus() ? 'WHERE COALESCE(status, is_active, 1) = 1' : 'WHERE is_active = 1';
+        return $this->contentManagerMainCoursesForSort();
+    }
 
-        $img = SchemaHelper::imagePathEnabled('courses') ? ', image_path' : '';
+    /** All main courses for admin sort panel (includes inactive). */
+    public function contentManagerMainCoursesForSort(): array
+    {
+        $mainTable = SchemaHelper::mainCourseImageTable();
+        $img = SchemaHelper::imagePathEnabled($mainTable) ? ', image_path' : '';
+        $from = $mainTable === 'main_courses' && SchemaHelper::hasTable('main_courses')
+            ? 'main_courses'
+            : 'courses';
+
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
 
         return db()->query(
-            "SELECT id, slug, name, name_te, description, sort_order{$img} FROM courses {$live} ORDER BY sort_order, name"
+            "SELECT id, slug, name, name_te, description, sort_order{$img} FROM `{$from}` ORDER BY {$order}"
         )->fetchAll();
     }
 
@@ -1224,16 +1328,35 @@ class AdminRepository
         if ($courseId < 1 || !SchemaHelper::hierarchyFourTier()) {
             return [];
         }
+        $courseId = $this->resolveContentManagerCourseId($courseId);
         $img = SchemaHelper::imagePathEnabled('sub_courses') ? ', image_path' : '';
         $st = SchemaHelper::columnExists('sub_courses', 'status')
             ? db()->prepare(
                 "SELECT id, slug, name, name_te, description, sort_order{$img} FROM sub_courses
-                 WHERE course_id=? AND COALESCE(status, is_active, 1)=1 ORDER BY sort_order, name"
+                 WHERE course_id=? AND COALESCE(status, is_active, 1)=1 ORDER BY " . SchemaHelper::sqlOrderBySort('sort_order', 'id')
             )
             : db()->prepare(
                 "SELECT id, slug, name, name_te, description, sort_order{$img} FROM sub_courses
-                 WHERE course_id=? AND is_active=1 ORDER BY sort_order, name"
+                 WHERE course_id=? AND is_active=1 ORDER BY " . SchemaHelper::sqlOrderBySort('sort_order', 'id')
             );
+        $st->execute([$courseId]);
+
+        return $st->fetchAll();
+    }
+
+    /** All sub-courses for admin sort panel (includes inactive). */
+    public function contentManagerSubCoursesForSort(int $courseId): array
+    {
+        if ($courseId < 1 || !SchemaHelper::hierarchyFourTier()) {
+            return [];
+        }
+        $courseId = $this->resolveContentManagerCourseId($courseId);
+        $img = SchemaHelper::imagePathEnabled('sub_courses') ? ', image_path' : '';
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
+        $st = db()->prepare(
+            "SELECT id, slug, name, name_te, description, sort_order{$img}
+             FROM sub_courses WHERE course_id=? ORDER BY {$order}"
+        );
         $st->execute([$courseId]);
 
         return $st->fetchAll();
@@ -1252,7 +1375,7 @@ class AdminRepository
              FROM subjects s
              INNER JOIN sub_course_subjects scs ON scs.subject_id = s.id
              WHERE scs.sub_course_id = ?
-             ORDER BY scs.sort_order, s.name"
+             ORDER BY " . SchemaHelper::sqlOrderBySort('scs.sort_order', 's.id')
         );
         $st->execute([$subCourseId]);
 
@@ -1271,7 +1394,7 @@ class AdminRepository
             "SELECT id, slug, title, title_te, sort_order,
                     COALESCE(question_count, 50) AS question_count,
                     COALESCE(has_sub_topics, 0) AS has_sub_topics
-             FROM `{$tbl}` WHERE subject_id=? ORDER BY sort_order, title"
+             FROM `{$tbl}` WHERE subject_id=? ORDER BY " . SchemaHelper::sqlOrderBySort('sort_order', 'id')
         );
         $st->execute([$subjectId]);
 
@@ -1317,6 +1440,9 @@ class AdminRepository
                 $topic['notes_bind'] = 'sub_topic';
             }
             $topic['exam_suite'] = $this->getTopicExamSuite($topicId, null);
+            if (SchemaHelper::topicMcqContentEnabled() && empty($topic['mcq_content'])) {
+                $topic['mcq_content'] = '';
+            }
             if (SchemaHelper::topicNotesEnabledColumn()) {
                 $topic['notes_enabled'] = (int) ($topic['notes_enabled'] ?? 1);
             } else {
@@ -1340,7 +1466,7 @@ class AdminRepository
             return [];
         }
         $st = db()->prepare(
-            'SELECT * FROM sub_topics WHERE topic_id=? ORDER BY sort_order, id'
+            'SELECT * FROM sub_topics WHERE topic_id=? ORDER BY sort_order ASC, id ASC'
         );
         $st->execute([$topicId]);
 
@@ -1348,7 +1474,7 @@ class AdminRepository
     }
 
     /**
-     * @param array{has_sub_topics?:bool|int,question_count?:int,notes_content?:string,sub_topics?:list<array<string,mixed>>} $data
+     * @param array{has_sub_topics?:bool|int,question_count?:int,notes_content?:string,mcq_content?:string,sub_topics?:list<array<string,mixed>>} $data
      */
     public function saveTopicContentManager(int $topicId, array $data): void
     {
@@ -1362,6 +1488,7 @@ class AdminRepository
             : 1;
         $qCount = max(1, min(999, (int) ($data['question_count'] ?? 50)));
         $notes = $notesEnabled ? (string) ($data['notes_content'] ?? '') : '';
+        $mcq = array_key_exists('mcq_content', $data) ? (string) $data['mcq_content'] : null;
         $incoming = $data['sub_topics'] ?? [];
         if (!is_array($incoming)) {
             $incoming = [];
@@ -1385,6 +1512,10 @@ class AdminRepository
         if (SchemaHelper::contentManagerEnabled()) {
             $sets = ['has_sub_topics=?', 'question_count=?', 'notes_content=?'];
             $params = [$hasSub, $qCount, $topicNotes];
+            if (SchemaHelper::topicMcqContentEnabled() && $mcq !== null) {
+                $sets[] = 'mcq_content=?';
+                $params[] = $mcq !== '' ? $mcq : null;
+            }
             if (SchemaHelper::topicNotesEnabledColumn()) {
                 $sets[] = 'notes_enabled=?';
                 $params[] = $notesEnabled;
@@ -1542,7 +1673,7 @@ class AdminRepository
             $sql .= 'sub_topic_id IS NULL';
             $params = [$topicId];
         }
-        $sql .= ' ORDER BY sort_order, id';
+        $sql .= ' ORDER BY ' . SchemaHelper::sqlOrderBySort('sort_order', 'id');
         $st = db()->prepare($sql);
         $st->execute($params);
         $rows = $st->fetchAll();
@@ -1715,7 +1846,42 @@ class AdminRepository
         if (!isset($map[$entity]) || !SchemaHelper::imagePathEnabled($map[$entity])) {
             throw new RuntimeException('image_path column not available for ' . $entity);
         }
-        db()->prepare('UPDATE `' . $map[$entity] . '` SET image_path=? WHERE id=?')->execute([$path, $id]);
+        $table = $map[$entity];
+        $st = db()->prepare("SELECT image_path FROM `{$table}` WHERE id=? LIMIT 1");
+        $st->execute([$id]);
+        $oldPath = $st->fetchColumn();
+        if (is_string($oldPath) && $oldPath !== '' && $oldPath !== $path) {
+            ImageUploadService::deleteIfStored($oldPath);
+        }
+        db()->prepare("UPDATE `{$table}` SET image_path=? WHERE id=?")->execute([$path, $id]);
+    }
+
+    /** Map Content Manager main-course selection to writable courses.id */
+    public function resolveContentManagerCourseId(int $selectedId): int
+    {
+        if ($selectedId < 1) {
+            throw new InvalidArgumentException('Main course selection required');
+        }
+
+        return SchemaHelper::resolveCatalogCourseId($selectedId);
+    }
+
+    private function preserveEntitySlug(string $table, ?int $id, string $requestedSlug, string $name): string
+    {
+        $requestedSlug = trim($requestedSlug);
+        if ($id !== null && $id > 0 && $requestedSlug === '') {
+            $st = db()->prepare("SELECT slug FROM `{$table}` WHERE id=? LIMIT 1");
+            $st->execute([$id]);
+            $existing = $st->fetchColumn();
+            if (is_string($existing) && $existing !== '') {
+                return $existing;
+            }
+        }
+        if ($requestedSlug !== '') {
+            return slugify($requestedSlug);
+        }
+
+        return slugify($name);
     }
 
     public function cmSaveMainCourse(array $data, ?int $id = null): int
@@ -1738,20 +1904,23 @@ class AdminRepository
 
     public function cmSaveSubCourse(array $data, ?int $id = null): int
     {
-        $courseId = (int) ($data['course_id'] ?? 0);
+        $rawCourseId = (int) ($data['course_id'] ?? 0);
+        $courseId = $this->resolveContentManagerCourseId($rawCourseId);
         $name = trim((string) ($data['name'] ?? ''));
         if ($courseId < 1 || $name === '') {
             throw new InvalidArgumentException('course_id and name required');
         }
 
+        $slug = $this->preserveEntitySlug('sub_courses', $id, (string) ($data['slug'] ?? ''), $name);
+
         return $this->saveSubCourse([
             'course_id' => $courseId,
-            'slug' => slugify((string) ($data['slug'] ?? $name)),
+            'slug' => $slug,
             'name' => $name,
             'name_te' => trim((string) ($data['name_te'] ?? '')),
             'description' => trim((string) ($data['description'] ?? '')),
             'sort_order' => (int) ($data['sort_order'] ?? 0),
-            'is_active' => !empty($data['is_active']) ? 1 : 0,
+            'is_active' => array_key_exists('is_active', $data) ? (!empty($data['is_active']) ? 1 : 0) : 1,
         ], $id);
     }
 
@@ -1768,18 +1937,37 @@ class AdminRepository
         if ($courseId < 1) {
             throw new InvalidArgumentException('sub_course not found');
         }
+        $slug = $this->preserveEntitySlug('subjects', $id, (string) ($data['slug'] ?? ''), $name);
         $subjectId = $this->saveSubject([
             'course_id' => $courseId,
-            'slug' => slugify((string) ($data['slug'] ?? $name)),
+            'slug' => $slug,
             'name' => $name,
             'name_te' => trim((string) ($data['name_te'] ?? '')),
             'description' => trim((string) ($data['description'] ?? '')),
             'sort_order' => (int) ($data['sort_order'] ?? 0),
-            'is_active' => !empty($data['is_active']) ? 1 : 0,
+            'is_active' => array_key_exists('is_active', $data) ? (!empty($data['is_active']) ? 1 : 0) : 1,
             'sub_course_ids' => [$subCourseId],
         ], $id);
 
+        $this->ensureSubjectPivotLive($subCourseId, $subjectId);
+
         return $subjectId;
+    }
+
+    public function ensureSubjectPivotLive(int $subCourseId, int $subjectId): void
+    {
+        if ($subCourseId < 1 || $subjectId < 1 || !SchemaHelper::hierarchyFourTier()) {
+            return;
+        }
+        if (SchemaHelper::columnExists('sub_course_subjects', 'status')) {
+            db()->prepare(
+                'UPDATE sub_course_subjects SET status=1, is_active=1 WHERE sub_course_id=? AND subject_id=?'
+            )->execute([$subCourseId, $subjectId]);
+        } elseif (SchemaHelper::columnExists('sub_course_subjects', 'is_active')) {
+            db()->prepare(
+                'UPDATE sub_course_subjects SET is_active=1 WHERE sub_course_id=? AND subject_id=?'
+            )->execute([$subCourseId, $subjectId]);
+        }
     }
 
     public function cmSetSubjectLive(int $subCourseId, int $subjectId, bool $live): void
@@ -1838,5 +2026,196 @@ class AdminRepository
         $st->execute([$id]);
 
         return $st->fetch() ?: null;
+    }
+
+    public function cmSaveTopicMeta(int $topicId, array $data): void
+    {
+        if ($topicId < 1) {
+            throw new InvalidArgumentException('topic_id required');
+        }
+        $title = trim((string) ($data['title'] ?? ''));
+        if ($title === '') {
+            throw new InvalidArgumentException('title required');
+        }
+        $tbl = SchemaHelper::topicsTable();
+        $titleTe = trim((string) ($data['title_te'] ?? ''));
+        db()->prepare("UPDATE `{$tbl}` SET title=?, title_te=? WHERE id=?")->execute([
+            $title,
+            $titleTe !== '' ? $titleTe : null,
+            $topicId,
+        ]);
+    }
+
+    /** @param array<string,mixed> $data */
+    public function saveTopicNotesOnly(int $topicId, array $data): void
+    {
+        $data = $this->applyNotesBinding($topicId, $data);
+        $this->saveTopicContentManager($topicId, [
+            'has_sub_topics' => !empty($data['has_sub_topics']),
+            'notes_enabled' => !empty($data['notes_enabled']),
+            'notes_content' => (string) ($data['notes_content'] ?? ''),
+            'sub_topics' => $data['sub_topics'] ?? [],
+            'question_count' => (int) ($data['question_count'] ?? 50),
+        ]);
+    }
+
+    public function saveTopicMcqTextOnly(int $topicId, string $mcqContent): void
+    {
+        if ($topicId < 1) {
+            throw new InvalidArgumentException('topic_id required');
+        }
+        if (!SchemaHelper::topicMcqContentEnabled()) {
+            throw new RuntimeException('mcq_content column not migrated.');
+        }
+        $tbl = SchemaHelper::topicsTable();
+        db()->prepare("UPDATE `{$tbl}` SET mcq_content=? WHERE id=?")->execute([
+            $mcqContent !== '' ? $mcqContent : null,
+            $topicId,
+        ]);
+    }
+
+    /** @param list<array<string,mixed>> $suites */
+    public function saveTopicExamSuiteOnly(int $topicId, array $suites): void
+    {
+        if ($topicId < 1) {
+            throw new InvalidArgumentException('topic_id required');
+        }
+        if (!SchemaHelper::topicExamSuiteEnabled()) {
+            throw new RuntimeException('topic_exam_suite not migrated.');
+        }
+        $this->saveTopicExamSuite($topicId, null, $suites);
+    }
+
+    /**
+     * @param array<string,mixed> $data
+     * @return array<string,mixed>
+     */
+    private function applyNotesBinding(int $topicId, array $data): array
+    {
+        $mode = (string) ($data['notes_bind_mode'] ?? 'topic');
+        $tbl = SchemaHelper::topicsTable();
+
+        if ($mode === 'new_subtopic') {
+            $name = trim((string) ($data['new_sub_topic_name'] ?? ''));
+            if ($name === '') {
+                throw new InvalidArgumentException('new_sub_topic_name required');
+            }
+            $data['has_sub_topics'] = 1;
+            $data['sub_topics'] = [[
+                'sub_topic_name' => $name,
+                'sub_topic_name_te' => trim((string) ($data['new_sub_topic_name_te'] ?? $name)),
+                'sub_notes_content' => (string) ($data['notes_content'] ?? ''),
+                'question_count' => 50,
+            ]];
+
+            return $data;
+        }
+
+        if ($mode === 'existing_subtopic') {
+            $subId = (int) ($data['bind_sub_topic_id'] ?? 0);
+            if ($subId < 1) {
+                throw new InvalidArgumentException('bind_sub_topic_id required');
+            }
+            $data['has_sub_topics'] = 1;
+            if (SchemaHelper::topicNotesBindEnabled()) {
+                db()->prepare("UPDATE `{$tbl}` SET notes_bind_sub_topic_id=? WHERE id=?")->execute([$subId, $topicId]);
+            }
+        }
+
+        return $data;
+    }
+
+    /**
+     * Parse MCQs into test_questions for a suite slot; also stores raw text in mcq_content.
+     *
+     * @param list<array{question_text:string,option_a:string,option_b:string,option_c:string,option_d:string,correct_option:string}> $questions
+     * @return array{test_id:int,imported:int,suite_key:string}
+     */
+    public function importMcqBankForTopicSuite(
+        int $topicId,
+        string $suiteKey,
+        array $questions,
+        ?string $rawText = null,
+        ?array $suiteMeta = null
+    ): array {
+        if ($topicId < 1 || $questions === []) {
+            throw new InvalidArgumentException('topic_id and questions required');
+        }
+        require_once dirname(__DIR__) . '/includes/admin/content_manager_defaults.php';
+        $allowed = array_column(content_manager_exam_suite_templates(), 'suite_key');
+        if (!in_array($suiteKey, $allowed, true)) {
+            throw new InvalidArgumentException('Invalid suite_key');
+        }
+
+        if ($rawText !== null && SchemaHelper::topicMcqContentEnabled()) {
+            $this->saveTopicMcqTextOnly($topicId, $rawText);
+        }
+
+        $suites = $this->getTopicExamSuite($topicId, null);
+        $merged = [];
+        $found = false;
+        foreach ($suites as $s) {
+            if (($s['suite_key'] ?? '') === $suiteKey) {
+                $found = true;
+                if (is_array($suiteMeta)) {
+                    $s = array_merge($s, $suiteMeta);
+                }
+                $s['question_count'] = count($questions);
+                $s['total_marks'] = count($questions);
+                $s['is_required'] = $s['is_required'] ?? 1;
+                $s['is_enabled'] = 1;
+            }
+            $merged[] = $s;
+        }
+        if (!$found) {
+            $row = ['suite_key' => $suiteKey, 'is_required' => 1, 'is_enabled' => 1];
+            if (is_array($suiteMeta)) {
+                $row = array_merge($row, $suiteMeta);
+            }
+            $row['question_count'] = count($questions);
+            $row['total_marks'] = count($questions);
+            $merged[] = $row;
+        }
+
+        $this->saveTopicExamSuite($topicId, null, $merged);
+        $fresh = $this->getTopicExamSuite($topicId, null);
+        $testId = 0;
+        foreach ($fresh as $s) {
+            if (($s['suite_key'] ?? '') === $suiteKey && !empty($s['test_id'])) {
+                $testId = (int) $s['test_id'];
+                break;
+            }
+        }
+        if ($testId < 1) {
+            throw new RuntimeException('Could not create linked test for suite.');
+        }
+
+        db()->prepare('DELETE FROM test_questions WHERE test_id=?')->execute([$testId]);
+        $order = 1;
+        foreach ($questions as $q) {
+            $letter = strtoupper(substr((string) ($q['correct_option'] ?? 'A'), 0, 1));
+            if (!in_array($letter, ['A', 'B', 'C', 'D'], true)) {
+                continue;
+            }
+            $this->saveQuestion([
+                'test_id' => $testId,
+                'question_order' => $order,
+                'question_text' => (string) ($q['question_text'] ?? ''),
+                'question_text_te' => null,
+                'option_a' => (string) ($q['option_a'] ?? ''),
+                'option_b' => (string) ($q['option_b'] ?? ''),
+                'option_c' => (string) ($q['option_c'] ?? ''),
+                'option_d' => (string) ($q['option_d'] ?? ''),
+                'correct_option' => $letter,
+                'explanation' => null,
+                'marks' => 1,
+                'topic_tag' => null,
+            ]);
+            ++$order;
+        }
+        $count = $order - 1;
+        db()->prepare('UPDATE tests SET total_questions=?, total_marks=? WHERE id=?')->execute([$count, $count, $testId]);
+
+        return ['test_id' => $testId, 'imported' => $count, 'suite_key' => $suiteKey];
     }
 }

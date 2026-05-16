@@ -9,6 +9,11 @@ if (empty($labels)) {
     $counts = [0];
 }
 ?>
+<?php
+$brandingReturnView = 'overview';
+require __DIR__ . '/branding_logo_card.php';
+?>
+
 <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
   <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
     <p class="text-xs font-semibold uppercase tracking-wider text-slate-500">Total Students</p>
@@ -28,38 +33,6 @@ if (empty($labels)) {
   </div>
 </div>
 
-<?php
-$platform = new PlatformRepository();
-$logoUrl = $platform->logoPath() ? public_media_url($platform->logoPath()) : '';
-?>
-<div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm mb-6">
-  <h2 class="font-semibold text-slate-800 mb-2">Site branding (logo)</h2>
-  <p class="text-xs text-slate-500 mb-4">అప్‌లోడ్ చేసిన లోగో మొత్తం పబ్లిక్ సైట్ హెడర్‌లో తక్షణం కనిపిస్తుంది.</p>
-  <form method="post" action="<?= admin_e(admin_url('actions.php')) ?>" enctype="multipart/form-data" class="flex flex-wrap items-end gap-4">
-    <input type="hidden" name="action" value="save_site_logo" />
-    <div class="flex items-center gap-4">
-      <label class="relative w-20 h-20 rounded-full border-2 border-dashed border-slate-300 bg-slate-50 flex items-center justify-center cursor-pointer hover:border-brand overflow-hidden group">
-        <?php if ($logoUrl): ?>
-        <img src="<?= admin_e($logoUrl) ?>?v=<?= time() ?>" alt="" class="w-full h-full object-cover" />
-        <?php else: ?>
-        <span class="text-3xl font-bold text-slate-400 group-hover:text-brand">+</span>
-        <?php endif; ?>
-        <input type="file" name="site_logo" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer" />
-      </label>
-      <div>
-        <p class="text-sm font-medium text-slate-800">Circular logo</p>
-        <p class="text-xs text-slate-500">PNG/JPG · max 2MB</p>
-      </div>
-    </div>
-    <button type="submit" class="px-5 py-2.5 bg-slate-900 text-white text-sm font-semibold rounded-lg hover:bg-slate-800">Apply logo</button>
-  </form>
-  <?php if ($logoUrl): ?>
-  <form method="post" action="<?= admin_e(admin_url('actions.php')) ?>" class="mt-3">
-    <input type="hidden" name="action" value="clear_site_logo" />
-    <button type="submit" class="px-4 py-2 text-sm text-red-600 border border-red-200 rounded-lg">Clear logo</button>
-  </form>
-  <?php endif; ?>
-</div>
 
 <div class="grid lg:grid-cols-3 gap-6">
   <div class="lg:col-span-2 bg-white rounded-xl border border-slate-200 p-6 shadow-sm">

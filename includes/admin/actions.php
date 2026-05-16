@@ -7,6 +7,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['action'])) {
     return;
 }
 
+require_admin();
+AdminAuthController::verifyCsrf(AdminAuthController::csrfFromRequest());
+
 $repo = new AdminRepository();
 $action = $_POST['action'];
 $view = $_POST['return_view'] ?? 'overview';
@@ -263,16 +266,23 @@ try {
 
         case 'save_site_logo':
             $plat = new PlatformRepository();
+            $oldPath = $plat->logoPath();
             $path = $repo->handleUpload('site_logo', 'branding');
             if (!$path) {
-                throw new InvalidArgumentException('Please choose an image file.');
+                throw new InvalidArgumentException('Please choose an image file (JPG, PNG, GIF, SVG, WEBP — up to 10 MB).');
             }
             $plat->set('site_logo_path', $path);
+            if ($oldPath !== null && $oldPath !== $path) {
+                ImageUploadService::deleteIfStored($oldPath);
+            }
             admin_flash('success', 'Site logo updated — visible on public site immediately.');
             break;
 
         case 'clear_site_logo':
-            (new PlatformRepository())->set('site_logo_path', null);
+            $plat = new PlatformRepository();
+            $oldPath = $plat->logoPath();
+            $plat->set('site_logo_path', null);
+            ImageUploadService::deleteIfStored($oldPath);
             admin_flash('success', 'Site logo cleared.');
             break;
     }

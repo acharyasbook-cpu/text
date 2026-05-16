@@ -69,8 +69,12 @@ Copy `config/database.local.php.example` → `config/database.local.php` if need
 
 ---
 
-## ⏳ Optional next steps (when you return)
-- Migrate `course.php`, `subject.php`, `exams.php` to the new classical public layout
+## ✅ Resumed (May 16, 2026)
+- **Classical layout** — `course.php`, `subject.php`, `exams.php` → `CourseController` + `includes/public/views/*`
+- **Media poll** — sub-course thumbnails on course overview (`view=course`)
+
+## ⏳ Optional next steps
+- Migrate `sub_course.php`, `topic-notes.php`, `exam.php` to classical layout
 - Wire more granular study progress (scroll % on notes)
 - Production deploy + `.env` / HTTPS
 

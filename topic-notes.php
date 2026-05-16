@@ -24,7 +24,7 @@ if (!$topic) {
 }
 
 $notes = $courseRepo->topicNotesForDisplay($topic);
-$backUrl = public_subject_workspace_url($courseSlug, $subSlug !== '' ? $subSlug : null, $subjectSlug);
+$backUrl = public_subject_workspace_url($courseSlug, $subSlug !== '' ? $subSlug : null, $subjectSlug, 'notes');
 
 $user = current_user();
 if ($user) {
@@ -38,9 +38,11 @@ require __DIR__ . '/includes/header.php';
 ?>
 
 <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <a href="<?= e($backUrl) ?>" class="inline-flex items-center gap-2 text-sm font-semibold text-royal hover:underline font-telugu mb-6">
-    ← వెనుకకు / Back to topics
-  </a>
+  <?php
+  $backHref = $backUrl;
+  $backLabel = '← వెనుకకు / Back to Notes list';
+  require __DIR__ . '/includes/public/views/partials/public_back_bar.php';
+  ?>
 
   <header class="bg-white border border-slate-200 rounded-lg p-6 mb-6">
     <h1 class="font-serif text-2xl font-bold text-royal"><?= e($topic['title']) ?></h1>
@@ -51,11 +53,12 @@ require __DIR__ . '/includes/header.php';
   </header>
 
   <article class="bg-white border border-slate-200 rounded-lg p-6 font-telugu text-slate-800 leading-relaxed whitespace-pre-wrap text-sm">
-    <?php if ($notes === ''): ?>
-      <p class="text-slate-500">ఈ టాపిక్‌కు నోట్స్ ఇంకా అందుబాటులో లేవు.</p>
-    <?php else: ?>
-      <?= nl2br(e($notes)) ?>
-    <?php endif; ?>
+    <?php
+    if ($notes === '') {
+        $notes = $courseRepo->topicNotesPlaceholder($topic);
+    }
+    echo nl2br(e($notes));
+    ?>
   </article>
 </main>
 

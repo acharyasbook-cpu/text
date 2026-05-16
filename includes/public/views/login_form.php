@@ -8,6 +8,9 @@
     <?php endif; ?>
 
     <form method="post" class="mt-6 space-y-4" autocomplete="on">
+      <?php if (!empty($return)): ?>
+      <input type="hidden" name="return" value="<?= e($return) ?>" />
+      <?php endif; ?>
       <div>
         <label class="block text-xs font-bold text-slate-800 mb-1">Email</label>
         <input type="email" name="email" required value="<?= e($email ?? '') ?>"

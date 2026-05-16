@@ -1,48 +1,79 @@
 <?php
 /** @var list<array<string,mixed>> $catalog */
 ?>
-<section>
-  <div class="classical-hero px-6 sm:px-8 py-8 sm:py-10 mb-8">
-    <p class="text-xs font-bold uppercase tracking-widest text-amber-300">ACHARYA BOOK · FREE PREVIEW</p>
-    <h1 class="font-telugu text-2xl sm:text-3xl font-bold mt-3 leading-snug">మీ విజయం, మా లక్ష్యం. ఆచార్యతో సిద్ధమవ్వండి.</h1>
-    <p class="text-sm text-blue-100/90 mt-3 max-w-2xl">కోర్సు కార్డ్ → సబ్ కోర్సులు, విషయాలు, టెస్టులు — అడ్మిన్ అప్‌లోడ్ చిత్రాలు ఇక్కడ ఆటోమేటిక్‌గా కనిపిస్తాయి.</p>
+<section class="home-course-section">
+  <div class="classical-hero px-6 sm:px-8 py-8 sm:py-10 mb-8 rounded-xl border border-[#E3E6F0] bg-gradient-to-br from-royal to-royal-light text-white shadow-sm">
+    <p class="text-xs font-bold uppercase tracking-widest text-amber-300 font-sans">ACHARYA BOOK · FREE PREVIEW</p>
+    <h1 class="font-telugu text-2xl sm:text-3xl font-bold mt-3 leading-snug text-white">మీ విజయం, మా లక్ష్యం. ఆచార్యతో సిద్ధమవ్వండి.</h1>
+    <p class="font-telugu text-sm text-blue-100/95 mt-3 max-w-2xl leading-relaxed">
+      అడ్మిన్ ప్యానెల్ నుండి అప్‌లోడ్ చేసిన కోర్సు చిత్రాలు — ఇక్కడ ఆటోమేటిక్‌గా కనిపిస్తాయి.
+    </p>
   </div>
 
-  <header class="mb-6">
-    <p class="text-[10px] font-bold uppercase tracking-widest text-royal">Courses</p>
+  <header class="mb-8">
+    <p class="text-[10px] font-bold uppercase tracking-widest text-royal font-sans">Courses</p>
     <h2 class="font-telugu text-2xl sm:text-3xl font-bold text-slate-900 mt-1">అన్ని కోర్సులు</h2>
-    <p class="text-sm text-slate-600 mt-1">డేటాబేస్ నుండి లోడ్ — క్రమం అడ్మిన్ లో sort order</p>
+    <p class="font-telugu text-sm text-slate-600 mt-1">డేటాబేస్ నుండి డైనమిక్ లోడ్ — AP DSC, TSPSC, TET, CTET మరియు కొత్త ప్యాకేజీలు</p>
   </header>
 
-  <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6" id="homeCourseGrid" data-media-scope="courses">
+  <?php if (empty($catalog)): ?>
+  <div class="home-course-empty font-telugu text-center py-16 px-6 bg-white border border-[#E3E6F0] rounded-xl">
+    <p class="text-lg font-semibold text-slate-800">ప్రస్తుతం సక్రియ కోర్సులు లేవు</p>
+    <p class="text-sm text-slate-500 mt-2">అడ్మిన్ కంటెంట్ మేనేజర్ నుండి కోర్సులను జోడించండి.</p>
+  </div>
+  <?php else: ?>
+
+  <div class="home-course-grid grid sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6" id="homeCourseGrid" data-media-scope="courses">
     <?php foreach ($catalog as $course):
-        $imgPath = (string) ($course['image_path'] ?? '');
-        $img = $imgPath !== '' ? public_media_url($imgPath) : '';
-        $imgVer = public_media_cache_version($imgPath ?: null);
-        $learnUrl = base_url('learn.php?course=' . rawurlencode($course['slug']));
+        $courseId = (int) ($course['id'] ?? 0);
+        $imgPath = trim((string) ($course['image_path'] ?? ''));
+        $imgUrl = $imgPath !== '' ? acharya_media_url($imgPath) : '';
+        $imgVer = $imgPath !== '' ? public_media_cache_version($imgPath) : 0;
+        $learnUrl = base_url('learn.php?course=' . rawurlencode((string) ($course['slug'] ?? '')));
+        $titleEn = (string) ($course['name'] ?? 'Course');
+        $titleTe = trim((string) ($course['name_te'] ?? ''));
+        $displayTitle = $titleTe !== '' ? $titleTe : $titleEn;
+        $programmeCount = count($course['programmes'] ?? []);
     ?>
-    <article class="classical-card group" data-entity-id="<?= (int) $course['id'] ?>" data-image-path="<?= e((string) ($course['image_path'] ?? '')) ?>">
-      <a href="<?= e($learnUrl) ?>" class="block">
-        <div class="classical-card-media">
-          <?php if ($img !== ''): ?>
-          <img src="<?= e($img) ?><?= $imgVer ? '?v=' . $imgVer : '' ?>" alt="<?= e($course['name']) ?>" loading="lazy" class="course-cover-img w-full h-full object-cover" />
+    <article class="home-course-card classical-card group"
+             data-entity-id="<?= $courseId ?>"
+             data-image-path="<?= e($imgPath) ?>">
+      <a href="<?= e($learnUrl) ?>" class="block h-full">
+        <div class="home-course-media classical-card-media">
+          <?php if ($imgUrl !== ''): ?>
+          <img src="<?= e($imgUrl) ?><?= $imgVer > 0 ? '?v=' . $imgVer : '' ?>"
+               alt="<?= e($titleEn) ?>"
+               loading="lazy"
+               class="course-cover-img home-course-cover-img"
+               width="400"
+               height="200" />
           <?php else: ?>
-          <div class="text-center p-6 text-slate-400">
-            <svg class="w-12 h-12 mx-auto opacity-40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            <p class="text-xs mt-2 font-medium">No image</p>
+          <div class="home-course-placeholder" aria-hidden="true">
+            <span class="font-telugu font-bold text-lg sm:text-xl text-slate-700 text-center leading-snug px-4">
+              <?= e($displayTitle) ?>
+            </span>
           </div>
           <?php endif; ?>
         </div>
-        <div class="p-5">
-          <h3 class="font-serif text-xl font-bold text-slate-900 group-hover:text-royal"><?= e($course['name']) ?></h3>
-          <?php if (!empty($course['name_te'])): ?>
-          <p class="font-telugu text-sm text-gold font-semibold mt-1"><?= e($course['name_te']) ?></p>
+        <div class="p-5 bg-white">
+          <h3 class="font-serif text-xl font-bold text-slate-900 group-hover:text-royal transition-colors">
+            <?= e($titleEn) ?>
+          </h3>
+          <?php if ($titleTe !== ''): ?>
+          <p class="font-telugu text-sm text-gold font-semibold mt-1 leading-relaxed"><?= e($titleTe) ?></p>
           <?php endif; ?>
-          <p class="text-xs text-slate-500 mt-3"><?= count($course['programmes'] ?? []) ?> programme(s)</p>
-          <span class="classical-btn-primary w-full mt-4 py-2.5 text-sm">Continue →</span>
+          <?php if (!empty($course['description'])): ?>
+          <p class="font-telugu text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed"><?= e((string) $course['description']) ?></p>
+          <?php endif; ?>
+          <p class="font-telugu text-xs text-slate-500 mt-3">
+            <?= $programmeCount ?> ప్రోగ్రామ్<?= $programmeCount === 1 ? '' : 'లు' ?>
+          </p>
+          <span class="classical-btn-primary w-full mt-4 py-2.5 text-sm font-telugu">కొనసాగించు →</span>
         </div>
       </a>
     </article>
     <?php endforeach; ?>
   </div>
+
+  <?php endif; ?>
 </section>
