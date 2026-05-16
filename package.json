@@ -1,0 +1,10 @@
+{
+  "name": "acharya-books",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Acharya Books — education landing page",
+  "scripts": {
+    "dev": "php -S 0.0.0.0:8081 -t .",
+    "start": "npm run dev"
+  }
+}

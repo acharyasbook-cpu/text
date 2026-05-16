@@ -1,0 +1,6 @@
+config/database.local.php
+database/*.sqlite
+storage/sessions/*
+!storage/sessions/.gitkeep
+uploads/*
+!uploads/.gitkeep

@@ -1,0 +1,68 @@
+.nav-item {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569;
+  border-radius: 0.25rem;
+  transition: color 0.2s, background-color 0.2s;
+}
+.nav-item:hover,
+.nav-item-active {
+  color: #1e3a8a;
+  background-color: rgba(245, 236, 212, 0.6);
+}
+.nav-item-active { font-weight: 600; border-bottom: 2px solid #b8860b; border-radius: 0; }
+
+.mega-panel {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(8px);
+  transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+}
+.mega-wrap:hover .mega-panel,
+.mega-wrap:focus-within .mega-panel {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #fff 0%, #f8fafc 100%);
+  border: 1px solid #e2e8f0;
+}
+.progress-bar {
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #1e3a8a, #b8860b);
+  border-radius: 9999px;
+  transition: width 0.6s ease;
+}
+
+.test-type-topic { background: #dbeafe; color: #1e40af; }
+.test-type-division { background: #fef3c7; color: #92400e; }
+.test-type-grand { background: #ede9fe; color: #5b21b6; }
+
+.footer-social {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.25rem;
+  color: #e2e8f0;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(184,134,11,0.35);
+  transition: all 0.2s;
+}
+.footer-social:hover {
+  color: #d4a843;
+  background: rgba(184,134,11,0.15);
+  border-color: #b8860b;
+}
