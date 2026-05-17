@@ -11,6 +11,8 @@
  * @var string $checkoutReturn
  * @var string $courseSlug
  */
+require_once dirname(__DIR__, 2) . '/MediaAvatarHelper.php';
+
 $courseSlug = (string) ($subCourse['course_slug'] ?? '');
 $subSlug = (string) ($subCourse['slug'] ?? '');
 $bannerPath = trim((string) ($subCourse['image_path'] ?? ''));
@@ -45,7 +47,10 @@ $bannerAlt = $titleEn;
 require __DIR__ . '/partials/programme_hero.php';
 ?>
 
+<?php require __DIR__ . '/partials/schedule_daily_workspace.php'; ?>
+<?php if (empty($scheduleDaily) || empty($scheduleDaily['rows'])): ?>
 <?php require __DIR__ . '/partials/programme_term_matrix.php'; ?>
+<?php endif; ?>
 
 <?php
 $plans = $plans;
@@ -55,6 +60,10 @@ $checkoutReturn = $checkoutReturn;
 require __DIR__ . '/partials/pricing_plans.php';
 ?>
 
+<link rel="stylesheet" href="<?= e(base_url('assets/css/subject-workspace.css')) ?>?v=<?= (int) @filemtime(dirname(__DIR__, 3) . '/assets/css/subject-workspace.css') ?>" />
+<div class="mb-4">
+  <a href="<?= e(base_url('index.php')) ?>" class="subject-workspace-back font-telugu inline-flex mb-2">← వెనుకకు / మెయిన్ కోర్సులు</a>
+</div>
 <section class="mb-4">
   <h2 class="font-telugu text-xl font-bold text-slate-900 mb-4">ఈ ప్రోగ్రామ్‌లోని విషయాలు</h2>
   <?php if (!$subjects): ?>
@@ -62,25 +71,21 @@ require __DIR__ . '/partials/pricing_plans.php';
   <?php else: ?>
   <div class="grid sm:grid-cols-2 gap-4 lg:gap-5">
     <?php foreach ($subjects as $sub):
-        $subImgPath = trim((string) ($sub['image_path'] ?? ''));
-        $subImg = $subImgPath !== '' ? acharya_media_url($subImgPath) : '';
-        $subVer = $subImgPath !== '' ? public_media_cache_version($subImgPath) : 0;
         $href = base_url(
             'subject.php?course=' . rawurlencode($courseSlug)
             . '&sub=' . rawurlencode($subSlug)
             . '&subject=' . rawurlencode((string) $sub['slug'])
         );
         $subTitleTe = trim((string) ($sub['name_te'] ?? ''));
-        $subDisplay = $subTitleTe !== '' ? $subTitleTe : (string) ($sub['name'] ?? '');
+        $label = MediaAvatarHelper::displayLabel($sub);
+        $imagePath = trim((string) ($sub['image_path'] ?? ''));
+        $shape = 'card';
+        $slotClass = 'programme-subject-media';
+        $avatarMode = 'full';
+        $alt = (string) ($sub['name'] ?? '');
     ?>
     <a href="<?= e($href) ?>" class="programme-subject-card group block">
-      <div class="programme-subject-media">
-        <?php if ($subImg !== ''): ?>
-        <img src="<?= e($subImg) ?><?= $subVer > 0 ? '?v=' . $subVer : '' ?>" alt="" class="w-full h-full object-cover" loading="lazy" />
-        <?php else: ?>
-        <div class="programme-subject-placeholder font-telugu font-bold text-slate-600 text-center px-4"><?= e($subDisplay) ?></div>
-        <?php endif; ?>
-      </div>
+      <?php require __DIR__ . '/partials/media_slot.php'; ?>
       <div class="p-5">
         <h3 class="font-semibold text-lg text-royal group-hover:text-royal-light"><?= e((string) ($sub['name'] ?? '')) ?></h3>
         <?php if ($subTitleTe !== ''): ?>

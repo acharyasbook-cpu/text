@@ -87,9 +87,37 @@ final class ContentManagerController
                 $scid = (int) ($_GET['sub_course_id'] ?? 0);
                 $this->jsonOk(['items' => $this->repo->contentManagerSubjects($scid)]);
                 break;
+            case 'search_subjects':
+                $q = trim((string) ($_GET['q'] ?? ''));
+                $scid = (int) ($_GET['sub_course_id'] ?? 0);
+                $limit = (int) ($_GET['limit'] ?? 50);
+                $this->jsonOk([
+                    'items' => $this->repo->searchSubjectsMaster($q, $scid, $limit),
+                ]);
+                break;
             case 'topics':
                 $sid = (int) ($_GET['subject_id'] ?? 0);
+                if ($sid > 0) {
+                    require_once dirname(__DIR__) . '/includes/TwentyItemBootstrapSeeder.php';
+                    TwentyItemBootstrapSeeder::ensureForSubject($sid);
+                }
                 $this->jsonOk(['items' => $this->repo->contentManagerTopics($sid)]);
+                break;
+            case 'search_topics':
+                $sid = (int) ($_GET['subject_id'] ?? 0);
+                $q = trim((string) ($_GET['q'] ?? ''));
+                $limit = (int) ($_GET['limit'] ?? 50);
+                $this->jsonOk([
+                    'items' => $this->repo->searchTopicsForSubject($sid, $q, $limit),
+                ]);
+                break;
+            case 'search_sub_topics':
+                $tid = (int) ($_GET['topic_id'] ?? 0);
+                $q = trim((string) ($_GET['q'] ?? ''));
+                $limit = (int) ($_GET['limit'] ?? 50);
+                $this->jsonOk([
+                    'items' => $this->repo->searchSubTopicsForTopic($tid, $q, $limit),
+                ]);
                 break;
             case 'topic':
                 $tid = (int) ($_GET['topic_id'] ?? 0);
@@ -108,7 +136,7 @@ final class ContentManagerController
                     $this->jsonError(404, 'Not found');
                     break;
                 }
-                $this->jsonOk(['item' => $row]);
+                $this->jsonOk(['item' => $this->enrichEntityMediaRow($row)]);
                 break;
             case 'resolve_programme':
                 $mc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['mc'] ?? ''));
@@ -169,6 +197,22 @@ final class ContentManagerController
         }
     }
 
+    /** @param array<string,mixed> $row */
+    private function enrichEntityMediaRow(array $row): array
+    {
+        require_once ACHARYA_ROOT . '/includes/MediaAvatarHelper.php';
+        $label = MediaAvatarHelper::displayLabel($row);
+        $palette = MediaAvatarHelper::palette($label !== '' ? $label : 'media');
+        $stored = trim((string) ($row['image_path'] ?? ''));
+        $row['display_label'] = $label;
+        $row['avatar_initials'] = MediaAvatarHelper::initials($label);
+        $row['avatar_bg'] = $palette['background'];
+        $row['avatar_color'] = $palette['color'];
+        $row['image_url'] = MediaAvatarHelper::resolvedUrl($stored !== '' ? $stored : null);
+
+        return $row;
+    }
+
     private function handleImageUpload(): void
     {
         $entity = preg_replace('/[^a-z_]/', '', (string) ($_POST['entity'] ?? ''));
@@ -208,6 +252,7 @@ final class ContentManagerController
                 $this->repo->saveTopicContentManager($topicId, [
                     'has_sub_topics' => !empty($data['has_sub_topics']),
                     'notes_enabled' => !empty($data['notes_enabled']),
+                    'can_download' => !empty($data['can_download']),
                     'question_count' => (int) ($data['question_count'] ?? 50),
                     'notes_content' => (string) ($data['notes_content'] ?? ''),
                     'mcq_content' => (string) ($data['mcq_content'] ?? ''),
@@ -248,12 +293,48 @@ final class ContentManagerController
                     throw new InvalidArgumentException('Select a main course before saving sub-course');
                 }
                 $newId = $this->repo->cmSaveSubCourse($data, $id);
+                if ($id === null) {
+                    require_once dirname(__DIR__) . '/includes/TwentyItemBootstrapSeeder.php';
+                    TwentyItemBootstrapSeeder::ensureForSubCourse($newId);
+                }
                 $this->jsonOk(['id' => $newId, 'course_id' => $this->repo->resolveContentManagerCourseId($courseId)]);
                 break;
 
             case 'delete_sub_course':
                 $this->repo->deleteSubCourse((int) ($data['id'] ?? 0));
                 $this->jsonOk([]);
+                break;
+
+            case 'link_subject':
+                $subCourseId = (int) ($data['sub_course_id'] ?? 0);
+                $subjectId = (int) ($data['subject_id'] ?? 0);
+                if ($subCourseId < 1 || $subjectId < 1) {
+                    throw new InvalidArgumentException('sub_course_id and subject_id required');
+                }
+                $this->repo->linkSubjectToSubCourse($subCourseId, $subjectId);
+                require_once dirname(__DIR__) . '/includes/TwentyItemBootstrapSeeder.php';
+                TwentyItemBootstrapSeeder::ensureForSubject($subjectId);
+                $row = $this->repo->cmEntityRow('subject', $subjectId);
+                $this->jsonOk([
+                    'id' => $subjectId,
+                    'sub_course_id' => $subCourseId,
+                    'item' => $row ? $this->enrichEntityMediaRow($row) : null,
+                ]);
+                break;
+
+            case 'create_sub_topic':
+                $topicId = (int) ($data['topic_id'] ?? 0);
+                $name = trim((string) ($data['name'] ?? $data['sub_topic_name'] ?? ''));
+                $nameTe = trim((string) ($data['name_te'] ?? $data['sub_topic_name_te'] ?? ''));
+                if ($topicId < 1 || $name === '') {
+                    throw new InvalidArgumentException('topic_id and name required');
+                }
+                $newId = $this->repo->createSubTopicQuick(
+                    $topicId,
+                    $name,
+                    $nameTe !== '' ? $nameTe : null
+                );
+                $this->jsonOk(['id' => $newId, 'sub_topic_id' => $newId]);
                 break;
 
             case 'save_subject':
@@ -263,6 +344,8 @@ final class ContentManagerController
                     throw new InvalidArgumentException('Select a sub-course before saving subject');
                 }
                 $newId = $this->repo->cmSaveSubjectForSubCourse($data, $id);
+                require_once dirname(__DIR__) . '/includes/TwentyItemBootstrapSeeder.php';
+                TwentyItemBootstrapSeeder::ensureForSubject($newId);
                 $row = $this->repo->cmEntityRow('subject', $newId);
                 $subjectSlug = (string) ($row['slug'] ?? '');
                 $publicUrl = null;

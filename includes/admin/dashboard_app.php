@@ -13,6 +13,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     require ACHARYA_ROOT . '/includes/admin/actions.php';
 }
 
+if (($_GET['view'] ?? '') === 'subjects') {
+    $qs = $_GET;
+    unset($qs['view']);
+    $qs['view'] = 'courses';
+    $qs['tab'] = 'subjects';
+    header('Location: ' . admin_dashboard_url($qs));
+    exit;
+}
+
 $view = $_GET['view'] ?? 'overview';
 $allowed = ['overview', 'content', 'schedule', 'pricing', 'whatsapp', 'analytics', 'hierarchy', 'courses', 'exams', 'students', 'programme'];
 if (!in_array($view, $allowed, true)) {

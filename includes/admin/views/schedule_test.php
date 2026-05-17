@@ -1,5 +1,7 @@
 <?php
-/** Schedule Test — unified with Content Manager wizard + auto sub-course matrix. */
-$cmOpenTab = 'schedule';
-$brandingReturnView = 'schedule';
-require __DIR__ . '/content_manager.php';
+
+declare(strict_types=1);
+
+/** Legacy dashboard route — redirect to unified manager. */
+header('Location: ' . admin_url('schedule_test.php'), true, 302);
+exit;

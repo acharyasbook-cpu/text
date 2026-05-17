@@ -445,3 +445,63 @@
 .exam-stat-pill--wrong { background: #fef2f2; color: #991b1b; border-color: #fecaca; }
 .exam-stat-pill--skip { background: #f8fafc; color: #475569; }
 .exam-stat-pill--time { background: #eff6ff; color: #1e40af; border-color: #bfdbfe; }
+
+/* Optional image_path — text avatar fallback (Noto Sans Telugu) */
+.media-slot {
+  position: relative;
+  overflow: hidden;
+  background: #f8fafc;
+}
+.media-slot--card,
+.media-slot.programme-subject-media {
+  height: 140px;
+  border-bottom: 1px solid #e3e6f0;
+}
+.media-slot--circle {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.media-slot--rounded {
+  border-radius: 0.75rem;
+  min-height: 140px;
+}
+.media-slot--banner,
+.media-slot-avatar--banner {
+  min-height: 220px;
+}
+.media-slot-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.media-slot-avatar {
+  width: 100%;
+  height: 100%;
+  min-height: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  text-align: center;
+}
+.media-slot-avatar-text {
+  font-family: "Noto Sans Telugu", system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  line-height: 1.25;
+  letter-spacing: 0.01em;
+}
+.media-slot-avatar-text--full {
+  font-size: clamp(0.95rem, 2.8vw, 1.15rem);
+  max-width: 100%;
+  word-break: break-word;
+}
+.media-slot--circle .media-slot-avatar-text {
+  font-size: 1rem;
+}
+.programme-banner-placeholder.media-slot-avatar {
+  border: none;
+}

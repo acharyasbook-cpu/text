@@ -431,29 +431,57 @@ class CourseRepository
         array $subject,
         bool $programmeHasAccess
     ): array {
+        require_once dirname(__DIR__) . '/includes/FreemiumAccess.php';
+
         $courseSlug = (string) ($subject['course_slug'] ?? '');
         $subSlug = $subject['sub_course_slug'] ?? null;
         $subjectSlug = (string) ($subject['slug'] ?? '');
+        $ranks = FreemiumAccess::topicRanksBySort($topics);
         $out = [];
 
         foreach ($topics as $topic) {
-            $locked = !$programmeHasAccess && empty($topic['is_free_preview']);
+            $topicId = (int) ($topic['id'] ?? 0);
+            $freemiumRank = FreemiumAccess::rankForTopic($ranks, $topicId);
+            $unlocked = FreemiumAccess::isTopicUnlocked($programmeHasAccess, $freemiumRank, $topic);
+            $locked = !$unlocked;
             $notesText = $this->topicNotesForDisplay($topic);
             $mcqText = $this->topicMcqForDisplay($topic);
-            $suite = $this->examSuiteTestsForTopic((int) ($topic['id'] ?? 0));
+            $suite = $this->examSuiteTestsForTopic($topicId);
             $notesPreview = $notesText !== '' ? $notesText : $this->topicNotesPlaceholder($topic);
-            $hasNotes = !$locked;
-            $hasExam = (!$locked && ($mcqText !== '' || $suite !== []));
+            $hasNotes = true;
+            $hasExam = $mcqText !== '' || $suite !== [];
+
+            $suiteOut = [];
+            foreach ($suite as $row) {
+                $suiteOut[] = $row + [
+                    'exam_locked' => $locked,
+                    'exam_url' => (!$locked && !empty($row['test_slug']))
+                        ? public_exam_start_url(
+                            $courseSlug,
+                            (string) $row['test_slug'],
+                            public_subject_exam_return_path(
+                                $courseSlug,
+                                $subSlug !== '' ? (string) $subSlug : null,
+                                $subjectSlug
+                            )
+                        )
+                        : null,
+                ];
+            }
 
             $out[] = $topic + [
+                'freemium_rank' => $freemiumRank,
                 'workspace_locked' => $locked,
+                'freemium_free_preview' => $freemiumRank <= FreemiumAccess::FREE_PREVIEW_SLOTS,
                 'has_notes' => $hasNotes,
                 'has_exam' => $hasExam,
                 'notes_preview' => mb_substr(strip_tags($notesPreview), 0, 160),
-                'notes_url' => $hasNotes
+                'notes_url' => $unlocked
                     ? public_topic_notes_url($courseSlug, $subSlug !== '' ? (string) $subSlug : null, $subjectSlug, (string) $topic['slug'])
                     : null,
-                'exam_suite' => $suite,
+                'notes_locked' => $locked,
+                'can_download' => !empty($topic['can_download']),
+                'exam_suite' => $suiteOut,
                 'exam_return_path' => public_subject_exam_return_path(
                     $courseSlug,
                     $subSlug !== '' ? (string) $subSlug : null,

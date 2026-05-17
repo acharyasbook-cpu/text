@@ -8,28 +8,12 @@ declare(strict_types=1);
  */
 final class ApDscTgtPgtCatalog
 {
-    /** Sub-course slug whitelist used by migrate_dynamic_hierarchy (HIERARCHY_RESEED). */
+    /** Sub-course slug whitelist (canonical registry). */
     public static function standardFlagshipSlugs(): array
     {
-        require_once __DIR__ . '/ApSaCatalog.php';
-        require_once __DIR__ . '/TsDscCatalog.php';
-        require_once __DIR__ . '/ApTetCatalog.php';
-        require_once __DIR__ . '/TsTetCatalog.php';
-        require_once __DIR__ . '/CtetCatalog.php';
+        require_once __DIR__ . '/CourseCatalogRegistry.php';
 
-        return array_merge(
-            ['sgt', 'pet'],
-            ApSaCatalog::programmeSlugs(),
-            TsDscCatalog::structuredProgrammeSlugs(),
-            ApTetCatalog::structuredProgrammeSlugs(),
-            TsTetCatalog::structuredProgrammeSlugs(),
-            CtetCatalog::structuredProgrammeSlugs(),
-            ['school-assistant'],
-            array_column(self::tgtProgrammes(), 'slug'),
-            ['tgt'],
-            array_column(self::pgtProgrammes(), 'slug'),
-            ['pgt'],
-        );
+        return CourseCatalogRegistry::allSubCourseSlugs();
     }
 
     /** @return list<array{slug:string,name:string,name_te:string,sort:int,subject_key:string,label_en:string,content_te:string}> */
@@ -57,8 +41,9 @@ final class ApDscTgtPgtCatalog
             ['slug' => 'ap-pgt-physical-science', 'name' => 'AP DSC PGT Physical Science', 'name_te' => 'ఏపీ డీఎస్‌సీ పీజీటీ భౌతిక శాస్త్రం', 'sort' => 55, 'subject_key' => 'physical-science', 'label_en' => 'Physical Science', 'content_te' => 'భౌతిక శాస్త్రం'],
             ['slug' => 'ap-pgt-biological-science', 'name' => 'AP DSC PGT Biological Science', 'name_te' => 'ఏపీ డీఎస్‌సీ పీజీటీ జీవ శాస్త్రం', 'sort' => 56, 'subject_key' => 'biological-science', 'label_en' => 'Biological Science', 'content_te' => 'జీవ శాస్త్రం'],
             ['slug' => 'ap-pgt-social-studies', 'name' => 'AP DSC PGT Social Studies', 'name_te' => 'ఏపీ డీఎస్‌సీ పీజీటీ సామాజిక శాస్త్రం', 'sort' => 57, 'subject_key' => 'social-studies', 'label_en' => 'Social Studies', 'content_te' => 'సామాజిక శాస్త్రం'],
-            ['slug' => 'ap-pgt-commerce', 'name' => 'AP DSC PGT Commerce', 'name_te' => 'ఏపీ డీఎస్‌సీ పీజీటీ వాణిజ్యం', 'sort' => 58, 'subject_key' => 'commerce', 'label_en' => 'Commerce', 'content_te' => 'వాణిజ్యం'],
-            ['slug' => 'ap-pgt-economics', 'name' => 'AP DSC PGT Economics', 'name_te' => 'ఏపీ డీఎస్‌సీ పీజీటీ ఆర్థిక శాస్త్రం', 'sort' => 59, 'subject_key' => 'economics', 'label_en' => 'Economics', 'content_te' => 'ఆర్థిక శాస్త్రం'],
+            ['slug' => 'ap-pgt-commerce', 'name' => 'AP DSC PGT Commerce', 'name_te' => 'ఏపీ PGT కామర్స్', 'sort' => 58, 'subject_key' => 'commerce', 'label_en' => 'Commerce', 'content_te' => 'వాణిజ్యం'],
+            ['slug' => 'ap-pgt-zoology', 'name' => 'AP DSC PGT Zoology', 'name_te' => 'ఏపీ PGT జూవాలజీ', 'sort' => 59, 'subject_key' => 'zoology', 'label_en' => 'Zoology', 'content_te' => 'జూవాలజీ'],
+            ['slug' => 'ap-pgt-botany', 'name' => 'AP DSC PGT Botany', 'name_te' => 'ఏపీ PGT బోటనీ', 'sort' => 60, 'subject_key' => 'botany', 'label_en' => 'Botany', 'content_te' => 'బోటనీ'],
         ];
     }
 

@@ -104,9 +104,16 @@ final class UserController
     public function dashboard(): void
     {
         $user = require_login();
+        $panel = (string) ($_GET['panel'] ?? 'overview');
+        if (!in_array($panel, ['overview', 'profile'], true)) {
+            $panel = 'overview';
+        }
         $data = $this->analytics->dashboard((int) $user['id']);
+        $dashboardPanel = $panel;
         $header = $this->header->build('dashboard', null);
-        $pageTitle = 'Student Dashboard | Acharya Books';
+        $pageTitle = $panel === 'profile'
+            ? 'Profile & Subscriptions | Acharya Books'
+            : 'Student Dashboard | Acharya Books';
         require dirname(__DIR__) . '/includes/public/layout_start.php';
         require dirname(__DIR__) . '/includes/public/views/student_dashboard.php';
         require dirname(__DIR__) . '/includes/public/layout_end.php';

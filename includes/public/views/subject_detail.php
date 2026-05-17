@@ -10,15 +10,23 @@
 $flashSuccess = flash('success');
 $flashError = flash('error');
 ?>
-<nav class="text-sm text-slate-500 mb-6 font-telugu" aria-label="Breadcrumb">
-  <a href="<?= e(base_url('index.php')) ?>" class="hover:text-royal">హోమ్</a>
-  <span class="mx-2">/</span>
-  <a href="<?= e(base_url('learn.php?course=' . rawurlencode((string) $subject['course_slug']))) ?>" class="hover:text-royal"><?= e($subject['course_name']) ?></a>
+<?php
+$backSubUrl = !empty($subject['sub_course_slug'])
+    ? public_sub_course_workspace_url((string) $subject['course_slug'], (string) $subject['sub_course_slug'])
+    : base_url('learn.php?course=' . rawurlencode((string) $subject['course_slug']));
+$backCourseUrl = base_url('learn.php?course=' . rawurlencode((string) $subject['course_slug']));
+$backHomeUrl = base_url('index.php');
+?>
+<link rel="stylesheet" href="<?= e(base_url('assets/css/subject-workspace.css')) ?>?v=<?= (int) @filemtime(dirname(__DIR__, 3) . '/assets/css/subject-workspace.css') ?>" />
+<nav class="text-sm text-slate-500 mb-4 font-telugu flex flex-wrap items-center gap-2" aria-label="Breadcrumb">
+  <a href="<?= e($backHomeUrl) ?>" class="hover:text-royal">హోమ్</a>
+  <span class="opacity-40">/</span>
+  <a href="<?= e($backCourseUrl) ?>" class="hover:text-royal"><?= e($subject['course_name']) ?></a>
   <?php if (!empty($subject['sub_course_slug'])): ?>
-  <span class="mx-2">/</span>
-  <a href="<?= e(public_sub_course_workspace_url((string) $subject['course_slug'], (string) $subject['sub_course_slug'])) ?>" class="hover:text-royal"><?= e($subject['sub_course_name'] ?? '') ?></a>
+  <span class="opacity-40">/</span>
+  <a href="<?= e($backSubUrl) ?>" class="hover:text-royal"><?= e($subject['sub_course_name'] ?? '') ?></a>
   <?php endif; ?>
-  <span class="mx-2">/</span>
+  <span class="opacity-40">/</span>
   <span class="text-royal font-semibold"><?= e($subject['name']) ?></span>
 </nav>
 

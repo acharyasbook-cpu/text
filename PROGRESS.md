@@ -102,3 +102,46 @@ acharya-books/
 > "Acharya Books checkpoint నుండి కొనసాగించు — classical UI + admin image sync పూర్తి చేసిన స్టేట్."
 
 Git: project initialized with commit **"checkpoint: classical frontend, auth, analytics, logo manager"** (see `git log`).
+
+---
+
+## ✅ Session save — May 17, 2026 (latest)
+
+**Folder:** `/root/acharya-books/`  
+**Server:** `php -S 0.0.0.0:8081 -t .` (from project root)
+
+### Built in this session
+- **20-topic bootstrap** — `TwentyItemBootstrapSeeder.php` (టాపిక్ 1–20 / టెస్ట్ 1–20)
+- **Freemium** — first 2 topics free, 3–20 locked + Razorpay modal (`FreemiumAccess`, `freemium-gate.js`)
+- **Subject workspace** — Notes / Online Exams tabs (`subject_workspace_hub.php`)
+- **25-mark mock exams** — `MockExamEngine.php`, instant analysis on `exam-result.php` (green/red answer sheet)
+- **Exam-focus UI** — no main nav on `exam_running.php` / `exam-result.php` (logo + back only)
+- **Secure notes** — `note_viewer.php`, watermark, anti-piracy (`SecureContentGuard`)
+- **Admin** — Content Manager search-or-create, `can_download`, subject images
+- **Profile tab** — `dashboard.php?panel=profile` (subscriptions only there)
+- **Migration:** `php database/migrate_freemium_twenty.php` (topics.can_download)
+
+### Resume URLs
+| Page | URL |
+|------|-----|
+| Home | http://localhost:8081/index.php |
+| Subject (example) | http://localhost:8081/subject.php?course=ap-dsc&sub=sgt&subject=ap-dsc-sgt-perspective-education |
+| Student dashboard | http://localhost:8081/dashboard.php |
+| Profile / subscriptions | http://localhost:8081/dashboard.php?panel=profile |
+| Admin | http://localhost:8081/admin/dashboard.php |
+| Content Manager | http://localhost:8081/admin/dashboard.php?view=content |
+
+### Git note
+Many files are **modified but not committed**. To freeze this snapshot:
+```bash
+cd /root/acharya-books
+git add -A
+git commit -m "checkpoint: freemium, subject workspace, exam focus UI, mock exams"
+```
+
+### 💬 Paste this to Cursor when you return
+```
+Acharya Books — /root/acharya-books నుండి కొనసాగించు.
+PROGRESS.md చదివి, php -S 0.0.0.0:8081 -t . తో సర్వర్ స్టార్ట్ చేసి పని చేయి.
+ఇప్పటి స్టేట్: 20-topic seeder, freemium (2 free + Razorpay), subject tabs, exam-result analysis, exam-focus header (no nav).
+```

@@ -88,6 +88,33 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
 }
 .cm-wizard-secondary-btn:hover { background:#eff6ff; }
 #cmWizardHint.is-hidden { display:none; }
+.cm-soc { position:relative; }
+.cm-soc-field { display:flex; gap:.35rem; align-items:stretch; }
+.cm-soc-search { flex:1; min-width:0; font-family:"Noto Sans Telugu",Inter,sans-serif; }
+.cm-soc-create {
+  flex-shrink:0; padding:.45rem .65rem; border-radius:.5rem; border:1px solid #cbd5e1;
+  background:#fff; color:#1e3a8a; font-size:.7rem; font-weight:800;
+  font-family:"Noto Sans Telugu",Inter,sans-serif; white-space:nowrap;
+}
+.cm-soc-create:hover:not(:disabled) { background:#eff6ff; border-color:#1e3a8a; }
+.cm-soc-create:disabled { opacity:.45; cursor:not-allowed; }
+.cm-soc-list {
+  position:absolute; left:0; right:0; top:calc(100% + 2px); z-index:50; max-height:14rem;
+  overflow-y:auto; margin:0; padding:.25rem; list-style:none; background:#fff;
+  border:1px solid #E3E6F0; border-radius:.5rem; box-shadow:0 10px 28px rgba(15,23,42,.12);
+}
+.cm-soc-item {
+  display:flex; align-items:center; justify-content:space-between; gap:.5rem;
+  padding:.45rem .55rem; border-radius:.375rem; cursor:pointer; font-size:.8125rem;
+}
+.cm-soc-item:hover, .cm-soc-item.is-active { background:#eff6ff; }
+.cm-soc-item-label { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cm-soc-badge { font-size:.6rem; font-weight:800; color:#047857; background:#ecfdf5; padding:.1rem .35rem; border-radius:.25rem; }
+.cm-soc-empty { padding:.5rem; font-size:.75rem; color:#94a3b8; }
+.cm-soc-native-hidden {
+  position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+  clip:rect(0,0,0,0); white-space:nowrap; border:0;
+}
 </style>
 <div class="font-telugu max-w-6xl mx-auto" id="contentManagerRoot"
      data-api="<?= admin_e($apiUrl) ?>"
@@ -136,7 +163,8 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
       </div>
       <div>
         <label class="cm-label block text-xs mb-1.5">3. సబ్జెక్ట్</label>
-        <select id="cmSubject" class="cm-input cm-select w-full rounded-lg px-3 py-2.5 text-sm text-slate-900" disabled></select>
+        <div id="cmSocSubjectMount"></div>
+        <select id="cmSubject" class="cm-input cm-select cm-soc-native-hidden" disabled aria-hidden="true" tabindex="-1"><option value="">—</option></select>
         <div class="mt-1 flex flex-wrap items-center gap-2">
           <button type="button" id="cmAddSubject" class="text-[11px] font-semibold text-slate-700" disabled>+ Add</button>
           <button type="button" id="cmDelSubject" class="text-[11px] font-semibold text-red-600" disabled>Delete</button>
@@ -147,15 +175,15 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
       </div>
       <div>
         <label class="cm-label block text-xs mb-1.5">4. టాపిక్</label>
-        <select id="cmTopic" class="cm-input cm-select w-full rounded-lg px-3 py-2.5 text-sm text-slate-900" disabled></select>
+        <div id="cmSocTopicMount"></div>
+        <select id="cmTopic" class="cm-input cm-select cm-soc-native-hidden" disabled aria-hidden="true" tabindex="-1"><option value="">—</option></select>
         <div class="mt-1"><button type="button" id="cmDelTopic" class="text-[11px] font-semibold text-red-600" disabled>Delete topic</button></div>
       </div>
     </div>
     <?php require __DIR__ . '/partials/cm_cover_forms.php'; ?>
     <?php require __DIR__ . '/partials/cm_entity_blocks.php'; ?>
     <div class="px-5 pb-4 flex flex-wrap gap-2 items-center border-t border-[#E3E6F0] bg-white pt-3">
-      <input type="text" id="cmNewTopicTitle" placeholder="కొత్త టాపిక్ పేరు (తెలుగు/ఇంగ్లీష్)" class="cm-input flex-1 min-w-[12rem] rounded-lg px-3 py-2 text-sm" disabled />
-      <button type="button" id="cmAddTopicBtn" class="px-4 py-2 text-sm font-semibold rounded-lg border border-[#E3E6F0] text-slate-500 bg-slate-50" disabled>+ టాపిక్</button>
+      <span class="text-[11px] text-slate-500 font-telugu">టాపిక్ ఎంపిక లేదా పైన + క్రియేట్ ఉపయోగించండి</span>
       <span id="cmCascadeStatus" class="text-xs text-slate-400 ml-auto"></span>
     </div>
     <p id="cmContextSummary" class="px-5 pb-3 text-xs text-slate-600 font-telugu border-t border-[#E3E6F0] pt-2 bg-slate-50/90 min-h-[1.25rem]"></p>
@@ -180,6 +208,7 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
 
   <div class="cm-tab-panel<?= $cmOpenTab === 'content' ? ' is-active' : '' ?>" data-cm-panel="content">
   <div id="cmWorkspace" class="hidden space-y-5">
+  <?php require __DIR__ . '/partials/cm_ai_wizard_placeholder.php'; ?>
     <section class="cm-card p-5 bg-white border border-[#E3E6F0]">
       <div class="flex flex-wrap items-center justify-between gap-4">
         <div>
@@ -192,7 +221,10 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
         </label>
       </div>
       <div id="cmSubTopicManual" class="hidden mt-4 pt-4 border-t border-[#E3E6F0] space-y-3">
-        <label class="cm-label block text-xs text-slate-800">సబ్-టాపిక్ పేరు</label>
+        <label class="cm-label block text-xs text-slate-800 font-telugu">సబ్-టాపిక్ (వెతకండి లేదా క్రియేట్)</label>
+        <div id="cmSocSubTopicMount" class="max-w-lg"></div>
+        <select id="cmSubTopicPick" class="cm-soc-native-hidden" aria-hidden="true" tabindex="-1"><option value="">—</option></select>
+        <label class="cm-label block text-xs text-slate-600 mt-2">ప్రాథమిక సబ్-టాపిక్ పేరు (మాన్యువల్)</label>
         <input type="text" id="cmSubTopicName" class="cm-input w-full max-w-lg rounded-lg px-3 py-2.5 text-sm font-telugu text-slate-900 border-[#E3E6F0]" placeholder="ఉదా: నదులు, ఎడారులు..." />
         <p id="cmNotesBindHint" class="text-xs text-slate-500 hidden font-telugu">నోట్స్ ఈ సబ్-టాపిక్‌కు మాత్రమే సేవ్ అవుతాయి.</p>
         <div id="cmSubTopicsExtra" class="space-y-2"></div>
@@ -211,6 +243,16 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
           <span class="w-11 h-6 bg-[#E3E6F0] rounded-full peer peer-checked:bg-slate-800 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></span>
         </label>
       </div>
+      <div class="flex flex-wrap items-center justify-between gap-3 mb-4 pb-4 border-b border-[#E3E6F0]">
+        <div>
+          <p class="text-sm font-bold text-slate-900 font-telugu">PDF డౌన్‌లోడ్ అనుమతి</p>
+          <p class="text-xs text-slate-600 mt-0.5 font-telugu">చెల్లింపు విద్యార్థులు మాత్రమే · ఉచిత ప్రివ్యూ ఎప్పటికీ డౌన్‌లోడ్ చేయలేరు</p>
+        </div>
+        <label class="relative inline-flex items-center cursor-pointer shrink-0">
+          <input type="checkbox" id="cmCanDownload" class="sr-only peer" />
+          <span class="w-11 h-6 bg-[#E3E6F0] rounded-full peer peer-checked:bg-emerald-700 transition-colors after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></span>
+        </label>
+      </div>
       <div id="cmNotesPanel">
       <p class="text-xs text-slate-600 mb-2 font-telugu">పూర్తి పాఠ్యం / సారాంశం — బైండ్ ఎంపిక చేసి సేవ్ చేయండి.</p>
       <div class="cm-notes-bind-row font-telugu text-xs mb-3">
@@ -218,7 +260,8 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
         <label class="flex items-center gap-1"><input type="radio" name="cmNotesBindMode" value="existing_subtopic" /> ఉన్న సబ్-టాపిక్</label>
         <label class="flex items-center gap-1"><input type="radio" name="cmNotesBindMode" value="new_subtopic" /> కొత్త సబ్-టాపిక్ పేరు</label>
       </div>
-      <select id="cmNotesBindSubSelect" class="cm-input w-full max-w-md rounded-lg px-3 py-2 text-sm mb-2 hidden font-telugu"></select>
+      <div id="cmSocNotesSubMount" class="max-w-md mb-2 hidden"></div>
+      <select id="cmNotesBindSubSelect" class="cm-input cm-soc-native-hidden hidden font-telugu" aria-hidden="true" tabindex="-1"><option value="">—</option></select>
       <input type="text" id="cmNotesNewSubName" class="cm-input w-full max-w-md rounded-lg px-3 py-2 text-sm mb-2 hidden font-telugu" placeholder="కొత్త సబ్-టాపిక్ పేరు..." />
       <p id="cmNotesTargetLabel" class="text-[11px] font-semibold text-slate-800 mb-2">బైండ్: మెయిన్ టాపిక్ ID</p>
       <textarea id="cmNotesContent" rows="12" class="cm-input w-full rounded-lg px-3 py-2.5 text-sm leading-relaxed resize-y min-h-[14rem] font-telugu text-slate-900 border-[#E3E6F0]" placeholder="ఈ టాపిక్‌కు సంబంధించిన నోట్స్ మొత్తం ఇక్కడ రాయండి..."></textarea>
@@ -272,6 +315,7 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
 </div>
 
 <?php if ($cmReady): ?>
+<script src="<?= admin_e(admin_site_url('assets/js/cm-search-or-create.js')) ?>"></script>
 <script>
 (function () {
   var root = document.getElementById('contentManagerRoot');
@@ -307,6 +351,7 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     examSection: document.getElementById('cmExamSection'),
     examGrid: document.getElementById('cmExamGrid'),
     notesEnabled: document.getElementById('cmNotesEnabled'),
+    canDownload: document.getElementById('cmCanDownload'),
     notesPanel: document.getElementById('cmNotesPanel'),
     coverRow: document.getElementById('cmCoverRow'),
     subjectLive: document.getElementById('cmSubjectLive'),
@@ -392,19 +437,37 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     });
   }
 
-  function setCoverPreview(imgEl, path, cacheVer) {
-    if (!imgEl) return;
-    if (!path) {
+  var coverUi = {
+    course: { img: 'cmCoverCourseImg', avatar: 'cmCoverCourseAvatar', initials: 'cmCoverCourseInitials', label: 'cmCoverCourseLabel' },
+    sub_course: { img: 'cmCoverSubImg', avatar: 'cmCoverSubAvatar', initials: 'cmCoverSubInitials', label: 'cmCoverSubLabel' },
+    subject: { img: 'cmCoverSubjectImg', avatar: 'cmCoverSubjectAvatar', initials: 'cmCoverSubjectInitials', label: 'cmCoverSubjectLabel' }
+  };
+
+  function setCoverPreview(entity, item) {
+    var ui = coverUi[entity];
+    if (!ui) return;
+    var imgEl = document.getElementById(ui.img);
+    var avEl = document.getElementById(ui.avatar);
+    if (!imgEl || !avEl) return;
+    if (item) {
+      var iniEl = document.getElementById(ui.initials);
+      var labEl = document.getElementById(ui.label);
+      var label = item.display_label || item.name_te || item.name || '—';
+      if (labEl) labEl.textContent = label;
+      if (iniEl) iniEl.textContent = item.avatar_initials || '—';
+      avEl.style.background = item.avatar_bg || '#f8fafc';
+      avEl.style.color = item.avatar_color || '#334155';
+    }
+    var url = item && item.image_url ? String(item.image_url) : '';
+    if (url) {
+      imgEl.src = url;
+      imgEl.classList.remove('hidden');
+      avEl.classList.add('hidden');
+    } else {
       imgEl.removeAttribute('src');
       imgEl.classList.add('hidden');
-      return;
+      avEl.classList.remove('hidden');
     }
-    var p = String(path);
-    var url = (p.indexOf('http://') === 0 || p.indexOf('https://') === 0 || p.charAt(0) === '/')
-      ? p
-      : mediaUrl(p);
-    imgEl.src = url + (cacheVer ? '?v=' + cacheVer : '');
-    imgEl.classList.remove('hidden');
   }
 
   function toggleNotesUi() {
@@ -423,28 +486,22 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     if (cBox) cBox.hidden = !mc;
     if (sBox) sBox.hidden = !sc;
     if (uBox) uBox.hidden = !su;
-    var imgCourse = document.getElementById('cmCoverCourseImg');
-    var imgSub = document.getElementById('cmCoverSubImg');
-    var imgSubject = document.getElementById('cmCoverSubjectImg');
-    if (!mc) setCoverPreview(imgCourse, '', 0);
+    if (!mc) setCoverPreview('course', null);
     else {
       fetchJson(api + '?action=entity&entity=course&id=' + mc).then(function (d) {
-        var p = d.ok && d.item ? d.item.image_path : '';
-        setCoverPreview(imgCourse, p || '', 0);
+        setCoverPreview('course', d.ok && d.item ? d.item : null);
       });
     }
-    if (!sc) setCoverPreview(imgSub, '', 0);
+    if (!sc) setCoverPreview('sub_course', null);
     else {
       fetchJson(api + '?action=entity&entity=sub_course&id=' + sc).then(function (d) {
-        var p = d.ok && d.item ? d.item.image_path : '';
-        setCoverPreview(imgSub, p || '', 0);
+        setCoverPreview('sub_course', d.ok && d.item ? d.item : null);
       });
     }
-    if (!su) setCoverPreview(imgSubject, '', 0);
+    if (!su) setCoverPreview('subject', null);
     else {
       fetchJson(api + '?action=entity&entity=subject&id=' + su).then(function (d) {
-        var p = d.ok && d.item ? d.item.image_path : '';
-        setCoverPreview(imgSubject, p || '', 0);
+        setCoverPreview('subject', d.ok && d.item ? d.item : null);
       });
     }
   }
@@ -452,6 +509,148 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
   function fetchJson(url) {
     return fetch(url, { credentials: 'same-origin' }).then(function (r) { return r.json(); });
   }
+
+  var socSubject, socTopic, socSubTopic, socNotesSub;
+  var elSubTopicPick = document.getElementById('cmSubTopicPick');
+
+  function cmSubjectLabel(s) {
+    return (s.name_te && String(s.name_te).trim()) ? String(s.name_te).trim() : (s.name || '—');
+  }
+  function cmTopicLabel(t) {
+    return (t.title_te && String(t.title_te).trim()) ? String(t.title_te).trim() : (t.title || '—');
+  }
+  function cmSubTopicLabel(st) {
+    return (st.sub_topic_name_te && String(st.sub_topic_name_te).trim())
+      ? String(st.sub_topic_name_te).trim() : (st.sub_topic_name || '—');
+  }
+
+  function syncSocCascade(level) {
+    if (level <= 2 && socSubject) { socSubject.setDisabled(true, 'ముందు సబ్ కోర్స్ ఎంచుకోండి'); socSubject.clearSelection(false); }
+    if (level <= 3 && socTopic) { socTopic.setDisabled(true, 'ముందు సబ్జెక్ట్ ఎంచుకోండి'); socTopic.clearSelection(false); }
+    if (level <= 4) {
+      if (socSubTopic) { socSubTopic.setDisabled(true, 'ముందు టాపిక్ ఎంచుకోండి'); socSubTopic.clearSelection(false); }
+      if (socNotesSub) { socNotesSub.setDisabled(true); socNotesSub.clearSelection(false); }
+    }
+  }
+
+  function initSearchOrCreate() {
+    if (typeof CmSearchOrCreate === 'undefined') return;
+    var mountS = document.getElementById('cmSocSubjectMount');
+    var mountT = document.getElementById('cmSocTopicMount');
+    var mountSt = document.getElementById('cmSocSubTopicMount');
+    var mountN = document.getElementById('cmSocNotesSubMount');
+
+    if (mountS && el.subject) {
+      socSubject = new CmSearchOrCreate({
+        mount: mountS,
+        selectEl: el.subject,
+        type: 'subject',
+        fetchJson: fetchJson,
+        getParentId: function () { return parseInt(el.sub.value, 10) || 0; },
+        fetchUrl: function (q) {
+          var scid = parseInt(el.sub.value, 10) || 0;
+          return api + '?action=search_subjects&sub_course_id=' + scid + '&q=' + encodeURIComponent(q) + '&limit=50';
+        },
+        labelFn: cmSubjectLabel,
+        onSelected: function (item) {
+          var scid = parseInt(el.sub.value, 10);
+          if (!scid || !item.id || parseInt(item.is_linked, 10) === 1) return Promise.resolve();
+          return postJson({ action: 'link_subject', sub_course_id: scid, subject_id: item.id }).then(function (d) {
+            if (!d.ok) throw new Error(d.error || 'Link failed');
+            item.is_linked = 1;
+          });
+        },
+        onCreate: function (name) {
+          var scid = parseInt(el.sub.value, 10);
+          if (!scid) throw new Error('సబ్ కోర్స్ ఎంచుకోండి');
+          return postJson({ action: 'save_subject', sub_course_id: scid, name: name, is_active: 1 }).then(function (d) {
+            if (!d.ok) throw new Error(d.error || 'Create failed');
+            return { id: d.id, name: name, name_te: '', is_linked: 1 };
+          });
+        },
+      });
+      socSubject.setDisabled(true);
+    }
+
+    if (mountT && el.topic) {
+      socTopic = new CmSearchOrCreate({
+        mount: mountT,
+        selectEl: el.topic,
+        type: 'topic',
+        fetchJson: fetchJson,
+        getParentId: function () { return parseInt(el.subject.value, 10) || 0; },
+        fetchUrl: function (q) {
+          var sid = parseInt(el.subject.value, 10) || 0;
+          return api + '?action=search_topics&subject_id=' + sid + '&q=' + encodeURIComponent(q) + '&limit=50';
+        },
+        labelFn: cmTopicLabel,
+        onCreate: function (name) {
+          var sid = parseInt(el.subject.value, 10);
+          if (!sid) throw new Error('సబ్జెక్ట్ ఎంచుకోండి');
+          return postJson({ action: 'create_topic', subject_id: sid, title: name }).then(function (d) {
+            if (!d.ok) throw new Error(d.error || 'Create failed');
+            return { id: d.topic_id, title: name, title_te: '' };
+          });
+        },
+      });
+      socTopic.setDisabled(true);
+    }
+
+    if (mountSt && elSubTopicPick) {
+      socSubTopic = new CmSearchOrCreate({
+        mount: mountSt,
+        selectEl: elSubTopicPick,
+        type: 'subtopic',
+        fetchJson: fetchJson,
+        getParentId: function () { return parseInt(el.topic.value, 10) || 0; },
+        fetchUrl: function (q) {
+          var tid = parseInt(el.topic.value, 10) || 0;
+          return api + '?action=search_sub_topics&topic_id=' + tid + '&q=' + encodeURIComponent(q) + '&limit=50';
+        },
+        labelFn: cmSubTopicLabel,
+        onSelected: function (item) {
+          if (el.subName) el.subName.value = cmSubTopicLabel(item);
+        },
+        onCreate: function (name) {
+          var tid = parseInt(el.topic.value, 10);
+          if (!tid) throw new Error('టాపిక్ ఎంచుకోండి');
+          return postJson({ action: 'create_sub_topic', topic_id: tid, name: name }).then(function (d) {
+            if (!d.ok) throw new Error(d.error || 'Create failed');
+            if (el.hasSub && !el.hasSub.checked) { el.hasSub.checked = true; toggleSubUi(); }
+            if (el.subName) el.subName.value = name;
+            return { id: d.id, sub_topic_name: name, sub_topic_name_te: name };
+          });
+        },
+      });
+      socSubTopic.setDisabled(true);
+    }
+
+    if (mountN && el.notesBindSub) {
+      socNotesSub = new CmSearchOrCreate({
+        mount: mountN,
+        selectEl: el.notesBindSub,
+        type: 'subtopic',
+        fetchJson: fetchJson,
+        getParentId: function () { return parseInt(el.topic.value, 10) || 0; },
+        fetchUrl: function (q) {
+          var tid = parseInt(el.topic.value, 10) || 0;
+          return api + '?action=search_sub_topics&topic_id=' + tid + '&q=' + encodeURIComponent(q) + '&limit=50';
+        },
+        labelFn: cmSubTopicLabel,
+        onCreate: function (name) {
+          var tid = parseInt(el.topic.value, 10);
+          if (!tid) throw new Error('టాపిక్ ఎంచుకోండి');
+          return postJson({ action: 'create_sub_topic', topic_id: tid, name: name }).then(function (d) {
+            if (!d.ok) throw new Error(d.error || 'Create failed');
+            return { id: d.id, sub_topic_name: name, sub_topic_name_te: name };
+          });
+        },
+      });
+      socNotesSub.setDisabled(true);
+    }
+  }
+
+  initSearchOrCreate();
 
   function fillSelect(select, items, valueKey, labelFn, placeholder) {
     select.innerHTML = '';
@@ -488,7 +687,9 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
 
   function syncNotesBindUi() {
     var mode = notesBindMode();
-    if (el.notesBindSub) el.notesBindSub.classList.toggle('hidden', mode !== 'existing_subtopic');
+    var notesMount = document.getElementById('cmSocNotesSubMount');
+    if (notesMount) notesMount.classList.toggle('hidden', mode !== 'existing_subtopic');
+    if (el.notesBindSub) el.notesBindSub.classList.toggle('hidden', true);
     if (el.notesNewSub) el.notesNewSub.classList.toggle('hidden', mode !== 'new_subtopic');
     if (el.notesTarget) {
       el.notesTarget.textContent = mode === 'topic' ? 'బైండ్: మెయిన్ టాపిక్' : (mode === 'new_subtopic' ? 'బైండ్: కొత్త సబ్-టాపిక్' : 'బైండ్: ఎంచుకున్న సబ్-టాపిక్');
@@ -585,8 +786,10 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     if (level <= 2) { el.subject.innerHTML = '<option value="">—</option>'; el.subject.disabled = true; }
     if (level <= 3) {
       el.topic.innerHTML = '<option value="">—</option>'; el.topic.disabled = true;
-      el.newTopic.disabled = true; el.addTopicBtn.disabled = true;
+      if (el.newTopic) el.newTopic.disabled = true;
+      if (el.addTopicBtn) el.addTopicBtn.disabled = true;
     }
+    syncSocCascade(level);
     el.workspace.classList.add('hidden');
     el.hint.classList.remove('hidden');
   }
@@ -722,6 +925,9 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
         el.notesEnabled.checked = t.notes_enabled === undefined || parseInt(t.notes_enabled, 10) !== 0;
         toggleNotesUi();
       }
+      if (el.canDownload) {
+        el.canDownload.checked = parseInt(t.can_download, 10) === 1;
+      }
       el.notes.value = t.notes_content || '';
       if (el.mcq) el.mcq.value = t.mcq_content || '';
       state.subTopics = t.sub_topics || [];
@@ -744,8 +950,10 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
             return st.sub_topic_name_te || st.sub_topic_name;
           }, '— సబ్-టాపిక్ —');
           if (t.active_sub_topic_id) el.notesBindSub.value = String(t.active_sub_topic_id);
+          if (socNotesSub) socNotesSub.syncFromSelect();
         });
       }
+      if (socSubTopic) socSubTopic.reload();
       loadEntityBlocks();
     });
   }
@@ -795,6 +1003,10 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     loadEntityBlocks();
     chainSelect(el.subject, api + '?action=subjects&sub_course_id=' + id, el.subject, function (s) { return s.name_te || s.name; }, function (d) {
       state.subjects = d.items || [];
+      if (socSubject) {
+        socSubject.setDisabled(false);
+        socSubject.syncFromSelect();
+      }
     });
   });
 
@@ -812,8 +1024,12 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     persistCascade();
     if (!id) return;
     chainSelect(el.topic, api + '?action=topics&subject_id=' + id, el.topic, function (t) { return t.title_te || t.title; }, function () {
-      el.newTopic.disabled = false;
-      el.addTopicBtn.disabled = false;
+      if (el.newTopic) el.newTopic.disabled = false;
+      if (el.addTopicBtn) el.addTopicBtn.disabled = false;
+      if (socTopic) {
+        socTopic.setDisabled(false);
+        socTopic.syncFromSelect();
+      }
     });
   });
 
@@ -842,13 +1058,39 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
 
   el.topic.addEventListener('change', function () {
     var id = el.topic.value;
-    if (!id) { resetFrom(4); return; }
+    if (!id) {
+      syncSocCascade(4);
+      resetFrom(4);
+      return;
+    }
+    if (socSubTopic) { socSubTopic.setDisabled(false); socSubTopic.reload(); }
+    if (socNotesSub) { socNotesSub.setDisabled(false); socNotesSub.reload(); }
     loadTopicConfig(id);
   });
 
   el.hasSub.addEventListener('change', toggleSubUi);
   if (el.notesEnabled) el.notesEnabled.addEventListener('change', toggleNotesUi);
   toggleNotesUi();
+
+  document.querySelectorAll('.cm-cover-hitbox').forEach(function (box) {
+    function openCoverUpload() {
+      var entity = box.getAttribute('data-cover-entity');
+      var idMap = { course: el.main.value, sub_course: el.sub.value, subject: el.subject.value };
+      if (!entity || !idMap[entity]) {
+        alert('ముందుగా కోర్స్ / సబ్-కోర్స్ / సబ్జెక్ట్ ఎంచుకోండి.');
+        return;
+      }
+      var wrapIds = { course: 'cmCoverCourseUploader', sub_course: 'cmCoverSubUploader', subject: 'cmCoverSubjectUploader' };
+      var wrap = document.getElementById(wrapIds[entity] || '');
+      if (wrap) wrap.classList.remove('hidden');
+      var fileInp = wrap && wrap.querySelector('.cm-cover-file');
+      if (fileInp) fileInp.click();
+    }
+    box.addEventListener('click', openCoverUpload);
+    box.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCoverUpload(); }
+    });
+  });
 
   document.querySelectorAll('.cm-cover-file').forEach(function (inp) {
     inp.addEventListener('change', function () {
@@ -870,11 +1112,18 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
         .then(function (r) { return r.json(); })
         .then(function (d) {
           if (!d.ok) throw new Error(d.error || 'Upload failed');
-          var imgIds = { course: 'cmCoverCourseImg', sub_course: 'cmCoverSubImg', subject: 'cmCoverSubjectImg' };
-          var imgEl = document.getElementById(imgIds[entity] || '');
-          if (imgEl) {
-            setCoverPreview(imgEl, d.url || d.image_path || '', d.v || 0);
+          if (entity && d.url) {
+            setCoverPreview(entity, {
+              image_url: d.url + (d.v ? (d.url.indexOf('?') >= 0 ? '&' : '?') + 'v=' + d.v : ''),
+              display_label: '',
+              avatar_initials: '—',
+              avatar_bg: '#f8fafc',
+              avatar_color: '#334155'
+            });
           }
+          var wrapIds = { course: 'cmCoverCourseUploader', sub_course: 'cmCoverSubUploader', subject: 'cmCoverSubjectUploader' };
+          var wrap = document.getElementById(wrapIds[entity] || '');
+          if (wrap) wrap.classList.add('hidden');
           updateCovers();
         }).catch(function (e) { alert(e.message); inp.value = ''; });
     });
@@ -946,19 +1195,22 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
     bindSubRemoves();
   });
 
-  el.addTopicBtn.addEventListener('click', function () {
-    var sid = el.subject.value, title = el.newTopic.value.trim();
-    if (!sid || !title) return;
-    postJson({ action: 'create_topic', subject_id: parseInt(sid, 10), title: title }).then(function (d) {
-      if (!d.ok) throw new Error(d.error);
-      el.newTopic.value = '';
-      return fetchJson(api + '?action=topics&subject_id=' + sid).then(function (td) {
-        fillSelect(el.topic, td.items, 'id', function (t) { return t.title_te || t.title; });
-        el.topic.value = String(d.topic_id);
-        loadTopicConfig(d.topic_id);
-      });
-    }).catch(function (e) { alert(e.message); });
-  });
+  if (el.addTopicBtn && el.newTopic) {
+    el.addTopicBtn.addEventListener('click', function () {
+      var sid = el.subject.value, title = el.newTopic.value.trim();
+      if (!sid || !title) return;
+      postJson({ action: 'create_topic', subject_id: parseInt(sid, 10), title: title }).then(function (d) {
+        if (!d.ok) throw new Error(d.error);
+        el.newTopic.value = '';
+        return fetchJson(api + '?action=topics&subject_id=' + sid).then(function (td) {
+          fillSelect(el.topic, td.items, 'id', function (t) { return t.title_te || t.title; });
+          el.topic.value = String(d.topic_id);
+          if (socTopic) socTopic.syncFromSelect();
+          loadTopicConfig(d.topic_id);
+        });
+      }).catch(function (e) { alert(e.message); });
+    });
+  }
 
   function buildTopicSavePayload(topicId) {
     return {
@@ -966,6 +1218,7 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
       topic_id: topicId,
       has_sub_topics: el.hasSub.checked ? 1 : 0,
       notes_enabled: el.notesEnabled && el.notesEnabled.checked ? 1 : 0,
+      can_download: el.canDownload && el.canDownload.checked ? 1 : 0,
       question_count: 50,
       notes_content: el.notesEnabled && el.notesEnabled.checked ? el.notes.value : '',
       mcq_content: el.mcq ? el.mcq.value : '',
@@ -1002,6 +1255,7 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
       topic_id: topicId,
       has_sub_topics: mode !== 'topic' || el.hasSub.checked ? 1 : 0,
       notes_enabled: el.notesEnabled && el.notesEnabled.checked ? 1 : 0,
+      can_download: el.canDownload && el.canDownload.checked ? 1 : 0,
       notes_content: el.notesEnabled && el.notesEnabled.checked ? el.notes.value : '',
       notes_bind_mode: mode,
       bind_sub_topic_id: mode === 'existing_subtopic' && el.notesBindSub ? parseInt(el.notesBindSub.value, 10) : 0,
@@ -1239,7 +1493,10 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
           .then(function () {
             el.sub.value = String(d.sub_course_id);
             loadSubCourseTermMatrix(parseInt(d.sub_course_id, 10) || 0);
-            return chainSelect(el.subject, api + '?action=subjects&sub_course_id=' + d.sub_course_id, el.subject, function (s) { return s.name_te || s.name; });
+            return chainSelect(el.subject, api + '?action=subjects&sub_course_id=' + d.sub_course_id, el.subject, function (s) { return s.name_te || s.name; })
+              .then(function () {
+                if (socSubject) { socSubject.setDisabled(false); socSubject.syncFromSelect(); }
+              });
           });
       });
   }
@@ -1266,7 +1523,11 @@ $deepSc = preg_replace('/[^a-z0-9-]/', '', strtolower($_GET['sc'] ?? ''));
           }
         })
         .then(function () {
-          if (saved.topic) el.topic.value = saved.topic;
+          if (saved.topic) {
+            el.topic.value = saved.topic;
+            if (socTopic) socTopic.syncFromSelect();
+          }
+          if (socSubject && el.subject.value) socSubject.syncFromSelect();
           loadEntityBlocks();
           updateContextSummary();
         });

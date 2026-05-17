@@ -276,6 +276,10 @@ $focusSubjectId = !empty($_GET['focus_subject']) ? (int) $_GET['focus_subject'] 
       <?php endif; ?>
       <div><label class="text-xs font-medium">Name *</label><input name="name" required value="<?= admin_e($subjectForm['name']??'') ?>" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" /></div>
       <div><label class="text-xs font-medium">Telugu</label><input name="name_te" value="<?= admin_e($subjectForm['name_te']??'') ?>" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm font-telugu" /></div>
+      <?php
+      $subjectId = $subjectForm ? (int) $subjectForm['id'] : 0;
+      require __DIR__ . '/partials/subject_image_picker.php';
+      ?>
       <div><label class="text-xs font-medium">Slug</label><input name="slug" value="<?= admin_e($subjectForm['slug']??'') ?>" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" /></div>
       <?php if (SchemaHelper::columnExists('subjects', 'marks_allocated')): ?>
       <div><label class="text-xs font-medium">Marks allocated</label><input type="number" name="marks_allocated" min="0" value="<?= isset($subjectForm['marks_allocated']) ? (int)$subjectForm['marks_allocated'] : '' ?>" placeholder="e.g. 100" class="mt-1 w-full border rounded-lg px-3 py-2 text-sm" /></div>

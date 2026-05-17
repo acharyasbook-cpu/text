@@ -1,0 +1,92 @@
+/* Freemium lock + checkout modal */
+.study-card--locked,
+.programme-topic-card--locked {
+  border-color: #fcd34d;
+  background: linear-gradient(135deg, #fffefb 0%, #fffbeb 100%);
+}
+
+.freemium-lock {
+  margin-left: 0.35rem;
+  font-size: 0.95em;
+}
+
+.freemium-badge {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.freemium-locked-cta {
+  cursor: pointer;
+  border: none;
+  width: 100%;
+  text-align: center;
+  background: linear-gradient(135deg, #1e3a8a, #2f4fa8);
+  color: #fff;
+  font-family: 'Noto Sans Telugu', Inter, sans-serif;
+}
+
+body.freemium-modal-open {
+  overflow: hidden;
+}
+
+.freemium-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.freemium-modal[hidden] {
+  display: none !important;
+}
+
+.freemium-modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(4px);
+}
+
+.freemium-modal__panel {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 28rem;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+  font-family: 'Noto Sans Telugu', Inter, sans-serif;
+}
+
+.freemium-modal__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.85rem;
+  border: none;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #64748b;
+  cursor: pointer;
+}
+
+.freemium-plan-card {
+  border: 1px solid #e3e6f0;
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: #faf8f5;
+}

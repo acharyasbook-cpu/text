@@ -19,15 +19,19 @@ final class ApTetCatalog
      */
     public static function programmes(): array
     {
-        return [
-            ['slug' => 'ap-tet-paper-1', 'name' => 'AP TET Paper I', 'name_te' => 'ఏపీ టెట్ పేపర్ 1', 'sort' => 10],
-            ['slug' => 'ap-tet-paper-1-special', 'name' => 'AP TET Paper I Special', 'name_te' => 'ఏపీ టెట్ పేపర్ 1 స్పెషల్', 'sort' => 20],
-            ['slug' => 'ap-tet-p2-telugu', 'name' => 'AP TET Paper II — Telugu', 'name_te' => 'ఏపీ టెట్ పేపర్ 2 తెలుగు', 'sort' => 30],
-            ['slug' => 'ap-tet-p2-english', 'name' => 'AP TET Paper II — English', 'name_te' => 'ఏపీ టెట్ పేపర్ 2 ఇంగ్లీష్', 'sort' => 40],
-            ['slug' => 'ap-tet-p2-hindi', 'name' => 'AP TET Paper II — Hindi', 'name_te' => 'ఏపీ టెట్ పేపర్ 2 హిందీ', 'sort' => 50],
-            ['slug' => 'ap-tet-p2-maths-science', 'name' => 'AP TET Paper II — Maths & Science', 'name_te' => 'ఏపీ టెట్ పేపర్ 2 మ్యాథ్స్ & సైన్స్', 'sort' => 60],
-            ['slug' => 'ap-tet-p2-social', 'name' => 'AP TET Paper II — Social Studies', 'name_te' => 'ఏపీ టెట్ పేపర్ 2 సోషల్ స్టడీస్', 'sort' => 70],
+        require_once __DIR__ . '/CourseCatalogRegistry.php';
+        $rows = [
+            ['slug' => 'ap-tet-paper-1', 'name' => 'AP TET Paper I', 'name_te' => 'పేపర్ వన్ ఏ', 'sort' => 1],
+            ['slug' => 'ap-tet-paper-1-special', 'name' => 'AP TET Paper I Special', 'name_te' => 'పేపర్ వన్ బి స్పెషల్', 'sort' => 2],
+            ['slug' => 'ap-tet-paper-2', 'name' => 'AP TET Paper II', 'name_te' => 'పేపర్ 2 ఏ', 'sort' => 3],
+            ['slug' => 'ap-tet-p2-telugu', 'name' => 'AP TET Paper II — Telugu', 'name_te' => 'పేపర్ టు ఏ తెలుగు', 'sort' => 4],
+            ['slug' => 'ap-tet-p2-hindi', 'name' => 'AP TET Paper II — Hindi', 'name_te' => 'పేపర్ టు ఏ హిందీ', 'sort' => 5],
+            ['slug' => 'ap-tet-p2-english', 'name' => 'AP TET Paper II — English', 'name_te' => 'పేపర్ టు ఏ ఇంగ్లీష్', 'sort' => 6],
+            ['slug' => 'ap-tet-p2-maths-science', 'name' => 'AP TET Paper II — Maths & Science', 'name_te' => 'పేపర్ టు ఏ మ్యాథమెటిక్స్ అండ్ సైన్స్', 'sort' => 7],
+            ['slug' => 'ap-tet-p2-social', 'name' => 'AP TET Paper II — Social Studies', 'name_te' => 'పేపర్ టు ఏ సోషల్ స్టడీస్', 'sort' => 8],
         ];
+
+        return CourseCatalogRegistry::applySortToProgrammes('ap-tet', $rows);
     }
 
     /**
@@ -163,6 +167,7 @@ final class ApTetCatalog
     {
         self::syncPivotForSlug($pdo, $courseId, 'ap-tet-paper-1', self::paper1SubjectRows(), static fn (array $r): string => self::paper1SubjectSlug($r[0]));
         self::syncPivotForSlug($pdo, $courseId, 'ap-tet-paper-1-special', self::paper1SpecialSubjectRows(), static fn (array $r): string => self::paper1SpecialSubjectSlug($r[0]));
+        self::syncPivotForSlug($pdo, $courseId, 'ap-tet-paper-2', self::paper1SubjectRows(), static fn (array $r): string => self::paper1SubjectSlug($r[0]));
 
         $tracks = [
             ['ap-tet-p2-telugu', 'telugu', 'Telugu', 'తెలుగు'],

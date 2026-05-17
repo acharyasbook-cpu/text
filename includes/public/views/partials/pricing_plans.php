@@ -30,7 +30,16 @@ $planUi = [
       <p class="font-telugu text-xs font-bold uppercase tracking-widest text-gold"><?= e($meta['short']) ?></p>
       <p class="font-semibold text-slate-900 mt-2"><?= e((string) ($pl['label'] ?? '')) ?></p>
       <p class="font-telugu text-xs text-slate-500 mt-1"><?= e($meta['hint_te']) ?></p>
-      <p class="text-3xl font-bold text-royal mt-4">₹<?= number_format((float) ($pl['price_inr'] ?? 0), 0) ?></p>
+      <?php
+        $offer = (float) ($pl['price_inr'] ?? 0);
+        $original = (float) ($pl['original_price_inr'] ?? 0);
+        ?>
+      <p class="mt-4 flex flex-wrap items-baseline gap-2">
+        <span class="text-3xl font-bold text-indigo-700">₹<?= number_format($offer, 0) ?></span>
+        <?php if ($original > $offer): ?>
+        <span class="text-lg text-slate-400 line-through font-medium">₹<?= number_format($original, 0) ?></span>
+        <?php endif; ?>
+      </p>
       <?php if ($user): ?>
       <form method="post" action="<?= e(base_url('checkout.php')) ?>" class="mt-5">
         <?= csrf_field() ?>

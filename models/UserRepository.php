@@ -59,9 +59,19 @@ class UserRepository
 
     public function touchLastLogin(int $userId): void
     {
-        if ($userId < 1 || !SchemaHelper::columnExists('users', 'last_login_at')) {
+        if ($userId < 1) {
             return;
         }
-        db()->prepare('UPDATE users SET last_login_at=NOW() WHERE id=?')->execute([$userId]);
+        if (SchemaHelper::columnExists('users', 'last_login_at')) {
+            db()->prepare('UPDATE users SET last_login_at=NOW() WHERE id=?')->execute([$userId]);
+        }
+        if (SchemaHelper::hasTable('user_login_events')) {
+            $ua = substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255);
+            $hash = $ua !== '' ? hash('sha256', $ua) : null;
+            $ip = substr((string) ($_SERVER['REMOTE_ADDR'] ?? ''), 0, 45);
+            db()->prepare(
+                'INSERT INTO user_login_events (user_id, user_agent_hash, user_agent_snippet, ip_address) VALUES (?,?,?,?)'
+            )->execute([$userId, $hash, $ua !== '' ? $ua : null, $ip !== '' ? $ip : null]);
+        }
     }
 }

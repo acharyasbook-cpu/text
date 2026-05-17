@@ -11,7 +11,8 @@ class SubscriptionRepository
         if (SchemaHelper::columnExists('user_subscriptions', 'sub_course_plan_id')) {
             $sql = 'SELECT us.*, p.slug, p.name, p.name_te, p.package_type, p.price_inr, p.includes_division_tests,
                            c.slug AS course_slug, s.slug AS subject_slug,
-                           sp.label AS plan_label, sp.plan_code, scp.name AS plan_sub_course_name
+                           sp.label AS plan_label, sp.plan_code, scp.name AS plan_sub_course_name,
+                           scp.slug AS sub_course_slug
                     FROM user_subscriptions us
                     LEFT JOIN sub_course_packages p ON p.id = us.package_id
                     LEFT JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id

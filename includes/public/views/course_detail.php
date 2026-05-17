@@ -1,5 +1,6 @@
 <?php
 /** @var array<string,mixed> $course @var bool $fourTier @var list<array> $subCourseBlocks @var list<array> $subjectsGrouped @var array<string,list> $testsByType @var list<array> $packages @var ?array $user */
+require_once dirname(__DIR__, 2) . '/MediaAvatarHelper.php';
 $courseSlug = (string) $course['slug'];
 $tierTe = public_five_tier_labels_te();
 $tierEn = [
@@ -42,7 +43,10 @@ $tierEn = [
         <div class="grid sm:grid-cols-2 gap-5" id="courseSubCourseGrid" data-media-scope="sub_courses" data-course-id="<?= (int) $course['id'] ?>">
           <?php foreach ($subCourseBlocks as $block):
               $scrow = $block['sub_course'];
-              $img = !empty($scrow['image_path']) ? public_media_url((string) $scrow['image_path']) : '';
+              $scImgPath = trim((string) ($scrow['image_path'] ?? ''));
+              $img = MediaAvatarHelper::resolvedUrl($scImgPath !== '' ? $scImgPath : null);
+              $scLabel = MediaAvatarHelper::displayLabel($scrow);
+              $scPalette = MediaAvatarHelper::palette($scLabel);
               $href = public_sub_course_workspace_url($courseSlug, (string) $scrow['slug']);
           ?>
           <article class="classical-card group" data-entity-id="<?= (int) $scrow['id'] ?>" data-image-path="<?= e((string) ($scrow['image_path'] ?? '')) ?>">
@@ -51,7 +55,9 @@ $tierEn = [
                 <?php if ($img !== ''): ?>
                 <img src="<?= e($img) ?>" alt="" class="w-full h-full object-cover course-cover-img" loading="lazy" />
                 <?php else: ?>
-                <div class="text-center p-6 text-slate-400 text-xs">No image</div>
+                <div class="media-slot-avatar font-telugu h-full min-h-[140px]" style="background:<?= e($scPalette['background']) ?>;color:<?= e($scPalette['color']) ?>;" role="img" aria-label="<?= e($scLabel) ?>">
+                  <span class="media-slot-avatar-text media-slot-avatar-text--full px-4 text-center"><?= e($scLabel) ?></span>
+                </div>
                 <?php endif; ?>
               </div>
               <div class="p-5">

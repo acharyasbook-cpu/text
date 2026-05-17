@@ -71,6 +71,19 @@ final class CourseController
             $courseSlug
         );
 
+        $scheduleDaily = null;
+        if (SchemaHelper::scheduleTestManagerEnabled()) {
+            require_once dirname(__DIR__) . '/models/ScheduleTestRepository.php';
+            require_once dirname(__DIR__) . '/models/ScheduleTestStudentService.php';
+            $scheduleDaily = (new ScheduleTestStudentService())->buildDailyWorkspace(
+                (int) $subCourse['id'],
+                $user ? (int) $user['id'] : null,
+                $courseSlug,
+                $subSlug,
+                ScheduleTestRepository::TERM_SHORT
+            );
+        }
+
         $tierTe = public_five_tier_labels_te();
         $activeSlug = (string) ($subCourse['course_slug'] ?? $courseSlug);
         $header = $this->header->build($activeSlug, $activeSlug);
@@ -108,6 +121,11 @@ final class CourseController
             return;
         }
 
+        require_once dirname(__DIR__) . '/includes/FreemiumAccess.php';
+        require_once dirname(__DIR__) . '/includes/TwentyItemBootstrapSeeder.php';
+        require_once dirname(__DIR__) . '/includes/SecureContentGuard.php';
+        TwentyItemBootstrapSeeder::ensureForSubject((int) $subject['id']);
+
         $topics = $this->courses->topicsForSubject((int) $subject['id']);
         $user = current_user();
         $courseRepo = $this->courses;
@@ -115,6 +133,8 @@ final class CourseController
         $subCourseId = 0;
         $programmeHasAccess = false;
         $scRow = null;
+        $plans = [];
+        $checkoutReturn = '';
         if (!empty($subject['sub_course_slug'])) {
             $scRow = $this->courses->findSubCourseBySlugs(
                 (string) $subject['course_slug'],
@@ -125,6 +145,13 @@ final class CourseController
                 $programmeHasAccess = $user && $this->subscriptions->userHasActivePlanForSubCourse(
                     (int) $user['id'],
                     $subCourseId
+                );
+                $plans = $this->courses->plansForSubCourse($subCourseId);
+                require_once dirname(__DIR__) . '/includes/public_site_helpers.php';
+                $checkoutReturn = public_subject_workspace_url(
+                    (string) $subject['course_slug'],
+                    (string) $subject['sub_course_slug'],
+                    (string) $subject['slug']
                 );
             }
         }

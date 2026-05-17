@@ -92,13 +92,24 @@ final class AnalyticsRepository
 
         $lastActiveSql = $this->lastActiveSql();
         $paidFlagSql = $this->isPaidStudentSql();
+        $loginCol = SchemaHelper::columnExists('users', 'last_login_at') ? 'u.last_login_at' : 'NULL';
+        $enrollSql = $this->activeEnrollmentsSql();
+        $deviceSql = $this->deviceCountSql();
+        $subSql = $this->activeSubscriptionSql();
 
         $sql = "SELECT u.id, u.name, u.email, u.phone, u.created_at,
+                       {$loginCol} AS last_login_at,
                        {$lastActiveSql} AS last_active_at,
                        {$paidFlagSql} AS is_paid,
+                       {$enrollSql} AS active_enrollments,
+                       {$subSql['plan_code']} AS active_plan_code,
+                       {$subSql['plan_label']} AS active_plan_label,
+                       {$subSql['purchased_at']} AS subscription_started_at,
+                       {$subSql['expires_at']} AS subscription_expires_at,
                        (SELECT COUNT(*) FROM test_attempts ta WHERE ta.user_id=u.id AND ta.status='submitted') AS exams_taken,
                        (SELECT ROUND(AVG(ta.score/NULLIF(ta.max_score,0)*100),1) FROM test_attempts ta
-                        WHERE ta.user_id=u.id AND ta.status='submitted' AND ta.max_score>0) AS avg_score_pct
+                        WHERE ta.user_id=u.id AND ta.status='submitted' AND ta.max_score>0) AS avg_score_pct,
+                       {$deviceSql} AS device_count
                 FROM users u
                 WHERE {$whereSql}
                 ORDER BY last_active_at DESC, u.created_at DESC
@@ -117,8 +128,9 @@ final class AnalyticsRepository
         }
 
         $lastActiveSql = $this->lastActiveSql();
+        $loginCol = SchemaHelper::columnExists('users', 'last_login_at') ? 'u.last_login_at,' : '';
         $st = db()->prepare(
-            "SELECT u.id, u.name, u.email, u.phone, u.created_at, {$lastActiveSql} AS last_active_at
+            "SELECT u.id, u.name, u.email, u.phone, u.created_at, {$loginCol} {$lastActiveSql} AS last_active_at
              FROM users u WHERE u.id=? AND u.role='student' LIMIT 1"
         );
         $st->execute([$userId]);
@@ -436,6 +448,62 @@ final class AnalyticsRepository
         }
 
         return '0';
+    }
+
+    private function activeEnrollmentsSql(): string
+    {
+        if (!SchemaHelper::hasTable('user_subscriptions')) {
+            return '0';
+        }
+
+        return "(SELECT COUNT(*) FROM user_subscriptions us WHERE us.user_id=u.id AND us.status='active')";
+    }
+
+    private function deviceCountSql(): string
+    {
+        if (!SchemaHelper::hasTable('user_login_events')) {
+            return '1';
+        }
+
+        return "(SELECT COUNT(DISTINCT COALESCE(ule.user_agent_hash, ule.id))
+                 FROM user_login_events ule
+                 WHERE ule.user_id=u.id AND ule.logged_in_at >= DATE_SUB(NOW(), INTERVAL 90 DAY))";
+    }
+
+    /** @return array{plan_code:string,plan_label:string,purchased_at:string,expires_at:string} */
+    private function activeSubscriptionSql(): array
+    {
+        if (!SchemaHelper::hasTable('user_subscriptions') || !SchemaHelper::hasTable('sub_course_plans')) {
+            return [
+                'plan_code' => 'NULL',
+                'plan_label' => 'NULL',
+                'purchased_at' => 'NULL',
+                'expires_at' => 'NULL',
+            ];
+        }
+
+        $teCol = SchemaHelper::columnExists('sub_course_plans', 'label_te')
+            ? "COALESCE(NULLIF(sp.label_te,''), sp.label)"
+            : 'sp.label';
+        $order = 'ORDER BY us.expires_at IS NULL DESC, us.expires_at DESC, us.purchased_at DESC LIMIT 1';
+        $join = 'FROM user_subscriptions us INNER JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id WHERE us.user_id = u.id AND us.status = \'active\'';
+
+        return [
+            'plan_code' => "(SELECT sp.plan_code {$join} {$order})",
+            'plan_label' => "(SELECT {$teCol} {$join} {$order})",
+            'purchased_at' => "(SELECT us.purchased_at {$join} {$order})",
+            'expires_at' => "(SELECT us.expires_at {$join} {$order})",
+        ];
+    }
+
+    public static function formatPlanCode(?string $code): string
+    {
+        return match ((string) $code) {
+            '6_months' => '6 Months',
+            '1_year' => '1 Year',
+            'until_exam' => 'Up to Exam',
+            default => $code !== '' ? $code : '—',
+        };
     }
 
     /**

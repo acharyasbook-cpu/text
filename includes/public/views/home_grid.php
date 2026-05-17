@@ -1,5 +1,6 @@
 <?php
 /** @var list<array<string,mixed>> $catalog */
+require_once dirname(__DIR__, 2) . '/MediaAvatarHelper.php';
 ?>
 <section class="home-course-section">
   <div class="classical-hero px-6 sm:px-8 py-8 sm:py-10 mb-8 rounded-xl border border-[#E3E6F0] bg-gradient-to-br from-royal to-royal-light text-white shadow-sm">
@@ -27,8 +28,8 @@
     <?php foreach ($catalog as $course):
         $courseId = (int) ($course['id'] ?? 0);
         $imgPath = trim((string) ($course['image_path'] ?? ''));
-        $imgUrl = $imgPath !== '' ? acharya_media_url($imgPath) : '';
-        $imgVer = $imgPath !== '' ? public_media_cache_version($imgPath) : 0;
+        $imgUrl = MediaAvatarHelper::resolvedUrl($imgPath !== '' ? $imgPath : null);
+        $imgVer = $imgUrl !== '' ? MediaAvatarHelper::cacheVersion($imgPath) : 0;
         $learnUrl = base_url('learn.php?course=' . rawurlencode((string) ($course['slug'] ?? '')));
         $titleEn = (string) ($course['name'] ?? 'Course');
         $titleTe = trim((string) ($course['name_te'] ?? ''));

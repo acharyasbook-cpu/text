@@ -1,0 +1,139 @@
+/* Secure note / exam views — anti-copy + watermark */
+.secure-content-page {
+  min-height: 100vh;
+  background: #faf8f5;
+}
+
+.secure-content-page .secure-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: #fff;
+  border-bottom: 1px solid #e3e6f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+/* Exam focus: no main nav — logo + back only */
+.exam-focus-page .exam-focus-topbar {
+  border-bottom: 2px solid rgba(184, 134, 11, 0.25);
+}
+
+.exam-focus-page .exam-focus-brand {
+  text-decoration: none;
+}
+
+.exam-focus-page .exam-focus-brand:hover .font-serif {
+  color: #2f4fa8;
+}
+
+.exam-focus-back {
+  font-family: 'Noto Sans Telugu', Inter, sans-serif;
+}
+
+.exam-focus-page nav[aria-label='Main'],
+.exam-focus-page #mobileNav,
+.exam-focus-page .mega-wrap {
+  display: none !important;
+}
+
+.secure-viewport {
+  position: relative;
+  isolation: isolate;
+}
+
+.secure-viewport::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: var(--secure-watermark, none);
+  background-repeat: repeat;
+  background-size: 340px 200px;
+  opacity: 1;
+}
+
+.secure-content-body {
+  position: relative;
+  z-index: 2;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.secure-content-body img,
+.secure-content-body video {
+  pointer-events: none;
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+.secure-content-body input[type='radio'],
+.secure-content-body input[type='checkbox'],
+.secure-content-body button,
+.secure-content-body a,
+.secure-content-body label {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.secure-content-body label:has(input[type='radio']) {
+  cursor: pointer;
+}
+
+.secure-shield-toast {
+  position: fixed;
+  bottom: 1.25rem;
+  left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  z-index: 200;
+  max-width: 22rem;
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  background: #0f172a;
+  color: #f8fafc;
+  font-family: 'Noto Sans Telugu', Inter, sans-serif;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.25);
+  opacity: 0;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.secure-shield-toast.is-visible {
+  transform: translateX(-50%) translateY(0);
+  opacity: 1;
+}
+
+/* Native WebView: app sets window.__ACHARYA_NATIVE_SECURE__ = true */
+html.secure-native-mode .secure-viewport::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  pointer-events: none;
+  background: transparent;
+}
+
+html.secure-native-mode.secure-capture-active .secure-viewport::after {
+  background: #000;
+}
+
+@media print {
+  .secure-content-page,
+  .secure-viewport,
+  .secure-content-body {
+    display: none !important;
+  }
+  body::after {
+    content: 'Printing disabled — ఆచార్య బుక్స్';
+    display: block;
+    padding: 2rem;
+    font-family: 'Noto Sans Telugu', sans-serif;
+    text-align: center;
+  }
+}

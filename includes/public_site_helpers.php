@@ -107,7 +107,7 @@ function public_topic_notes_url(string $courseSlug, ?string $subCourseSlug, stri
         $q['sub'] = $subCourseSlug;
     }
 
-    return base_url('topic-notes.php?' . http_build_query($q));
+    return base_url('note_viewer.php?' . http_build_query($q));
 }
 
 /** Relative return path for exam → subject workspace (exam panel). */
@@ -128,7 +128,7 @@ function public_exam_start_url(string $courseSlug, string $testSlug, ?string $re
         $q['return'] = $returnPath;
     }
 
-    return base_url('exam.php?' . http_build_query($q));
+    return base_url('exam_running.php?' . http_build_query($q));
 }
 
 function public_course_overview_url(string $courseSlug): string

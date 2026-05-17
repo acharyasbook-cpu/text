@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require __DIR__ . '/includes/init.php';
+require_once __DIR__ . '/includes/FreemiumAccess.php';
+require_once __DIR__ . '/includes/MockExamEngine.php';
+require_once __DIR__ . '/includes/public_site_helpers.php';
 
 $user = require_login();
 $userId = (int) $user['id'];
@@ -24,10 +27,47 @@ if (!$subRepo->userHasTestAccess($userId, (int) $test['id'])) {
     redirect('exams.php');
 }
 
-$questions = $testRepo->questionsForTest((int) $test['id']);
+if (!empty($test['subject_id'])) {
+    $st = db()->prepare(
+        'SELECT s.*, c.slug AS course_slug, sc.slug AS sub_course_slug
+         FROM subjects s
+         JOIN courses c ON c.id = s.course_id
+         LEFT JOIN sub_course_subjects scs ON scs.subject_id = s.id
+         LEFT JOIN sub_courses sc ON sc.id = scs.sub_course_id
+         WHERE s.id = ? LIMIT 1'
+    );
+    $st->execute([(int) $test['subject_id']]);
+    $subjectRow = $st->fetch();
+    if ($subjectRow) {
+        FreemiumAccess::assertTestAccess($user, $test, $subjectRow);
+    }
+}
 
-// Submit results
+// Submit results → instant analysis dashboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_exam'])) {
+    if (!empty($_POST['mock_exam'])) {
+        $questions = $_SESSION['mock_exam_questions'] ?? [];
+        if ($questions === []) {
+            $questions = MockExamEngine::questionsForTest($test, []);
+        }
+        $answers = is_array($_POST['answer'] ?? null) ? $_POST['answer'] : [];
+        $timeTaken = (int) ($_POST['time_taken'] ?? 0);
+        $graded = MockExamEngine::gradeSubmission($answers, $questions, $test, $timeTaken);
+        unset($_SESSION['mock_exam_questions']);
+
+        $returnPath = trim((string) ($_POST['return_url'] ?? $_GET['return'] ?? ''));
+        $returnUrl = '';
+        if ($returnPath !== '' && !preg_match('#^https?://#i', $returnPath)) {
+            $returnUrl = base_url(ltrim($returnPath, '/'));
+        }
+
+        $_SESSION['last_result'] = $graded + [
+            'test_title' => (string) ($test['title_te'] ?: $test['title']),
+            'return_url' => $returnUrl !== '' ? $returnUrl : null,
+        ];
+        redirect('exam-result.php');
+    }
+
     $answers = $_POST['answer'] ?? [];
     $correct = 0;
     $wrong = 0;
@@ -80,19 +120,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_exam'])) {
         $upd->execute([$timeTaken, $score, $maxScore, $correct, $wrong, $unanswered, $attemptId]);
 
         $pdo->commit();
+
+        $scheduleRowId = (int) ($_POST['schedule_row_id'] ?? 0);
+        if ($scheduleRowId > 0 && SchemaHelper::scheduleTestManagerEnabled()) {
+            require_once __DIR__ . '/models/ScheduleTestStudentService.php';
+            (new ScheduleTestStudentService())->markRowComplete($userId, $scheduleRowId);
+        }
+
         $returnUrl = trim((string) ($_POST['return_url'] ?? $_GET['return'] ?? ''));
         if ($returnUrl !== '' && !preg_match('#^https?://#i', $returnUrl)) {
             $returnUrl = base_url(ltrim($returnUrl, '/'));
         }
+        $sheet = [];
+        $qStmt = db()->prepare(
+            'SELECT id, question_text, question_text_te, option_a, option_b, option_c, option_d, correct_option
+             FROM test_questions WHERE test_id = ? ORDER BY question_order'
+        );
+        $qStmt->execute([(int) $test['id']]);
+        $allQ = $qStmt->fetchAll();
+        foreach ($allQ as $idx => $q) {
+            $qid = (int) $q['id'];
+            $selected = isset($answers[$qid]) && $answers[$qid] !== ''
+                ? strtoupper((string) $answers[$qid])
+                : null;
+            $correctOpt = strtoupper((string) $q['correct_option']);
+            $isCorrect = $selected !== null && $selected === $correctOpt;
+            $sheet[] = [
+                'num' => $idx + 1,
+                'question_text' => (string) $q['question_text'],
+                'question_text_te' => (string) ($q['question_text_te'] ?? ''),
+                'options' => [
+                    'A' => (string) $q['option_a'],
+                    'B' => (string) $q['option_b'],
+                    'C' => (string) $q['option_c'],
+                    'D' => (string) $q['option_d'],
+                ],
+                'selected' => $selected,
+                'correct_option' => $correctOpt,
+                'is_correct' => $isCorrect,
+                'unanswered' => $selected === null,
+            ];
+        }
+
         $_SESSION['last_result'] = [
             'score' => $score,
             'max_score' => $maxScore,
             'correct' => $correct,
             'wrong' => $wrong,
             'unanswered' => $unanswered,
-            'test_title' => $test['title'],
+            'test_title' => (string) ($test['title_te'] ?: $test['title']),
             'time_taken' => $timeTaken,
             'return_url' => $returnUrl !== '' ? $returnUrl : null,
+            'answer_sheet' => $sheet,
+            'mock_mode' => false,
         ];
         redirect('exam-result.php');
     } catch (Throwable $e) {
@@ -101,133 +181,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_exam'])) {
     }
 }
 
-$returnPath = trim((string) ($_GET['return'] ?? ''));
-$returnUrl = '';
-if ($returnPath !== '' && !preg_match('#^https?://#i', $returnPath)) {
-    $returnUrl = base_url(ltrim($returnPath, '/'));
-}
-
-$pageTitle = $test['title'] . ' | Exam';
-$activeNav = 'exams';
-$durationSecs = (int) $test['duration_mins'] * 60;
-require __DIR__ . '/includes/head.php';
-require __DIR__ . '/includes/header.php';
-?>
-
-<main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-  <?php if ($returnUrl !== ''): ?>
-  <?php
-  $backHref = $returnUrl;
-  $backLabel = '← వెనుకకు / Back to Exams';
-  require __DIR__ . '/includes/public/views/partials/public_back_bar.php';
-  ?>
-  <?php endif; ?>
-  <div class="bg-white border border-slate-200 rounded-lg shadow-sm sticky top-20 z-40 p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
-    <div>
-      <h1 class="font-semibold text-royal"><?= e($test['title']) ?></h1>
-      <p class="text-xs text-slate-500"><?= count($questions) ?> questions · Negative: <?= e((string) $test['negative_marking']) ?></p>
-    </div>
-    <div class="flex items-center gap-4">
-      <div class="text-center">
-        <p class="text-xs text-slate-500 uppercase">Time left</p>
-        <p id="timer" class="text-2xl font-bold text-royal tabular-nums">--:--</p>
-      </div>
-      <p class="text-sm">Q <span id="currentQ">1</span>/<?= count($questions) ?></p>
-    </div>
-  </div>
-
-  <form id="examForm" method="post" class="space-y-8">
-    <input type="hidden" name="submit_exam" value="1" />
-    <input type="hidden" name="time_taken" id="timeTaken" value="0" />
-    <?php if ($returnPath !== ''): ?>
-    <input type="hidden" name="return_url" value="<?= e($returnPath) ?>" />
-    <?php endif; ?>
-
-    <?php foreach ($questions as $idx => $q): ?>
-    <fieldset class="exam-question bg-white border border-slate-200 rounded-lg p-6 <?= $idx > 0 ? 'hidden' : '' ?>" data-index="<?= $idx ?>">
-      <legend class="font-medium text-slate-800 mb-4">
-        <span class="text-gold font-semibold">Q<?= $idx + 1 ?>.</span>
-        <?= e($q['question_text']) ?>
-      </legend>
-      <?php if (!empty($q['question_text_te'])): ?>
-        <p class="font-telugu text-sm text-slate-600 mb-4 -mt-2"><?= e($q['question_text_te']) ?></p>
-      <?php endif; ?>
-      <div class="space-y-2">
-        <?php foreach (['A' => 'option_a', 'B' => 'option_b', 'C' => 'option_c', 'D' => 'option_d'] as $opt => $col): ?>
-        <label class="flex items-start gap-3 p-3 rounded border border-slate-100 hover:border-royal/30 hover:bg-slate-50 cursor-pointer has-[:checked]:border-royal has-[:checked]:bg-blue-50/50">
-          <input type="radio" name="answer[<?= (int) $q['id'] ?>]" value="<?= $opt ?>" class="mt-1 text-royal focus:ring-royal" />
-          <span class="text-sm"><strong><?= $opt ?>.</strong> <?= e($q[$col]) ?></span>
-        </label>
-        <?php endforeach; ?>
-      </div>
-    </fieldset>
-    <?php endforeach; ?>
-
-    <div class="flex justify-between gap-4 pb-12">
-      <button type="button" id="prevBtn" class="px-5 py-2 border border-slate-300 rounded text-sm font-medium disabled:opacity-40" disabled>Previous</button>
-      <button type="button" id="nextBtn" class="px-5 py-2 bg-royal text-white rounded text-sm font-semibold">Next</button>
-      <button type="submit" id="submitBtn" class="hidden px-5 py-2 bg-gold text-white rounded text-sm font-semibold">Submit Exam</button>
-    </div>
-  </form>
-</main>
-
-<script>
-(function () {
-  const total = <?= count($questions) ?>;
-  const duration = <?= $durationSecs ?>;
-  let remaining = duration;
-  let current = 0;
-  const startTime = Date.now();
-  const panels = document.querySelectorAll('.exam-question');
-  const timerEl = document.getElementById('timer');
-  const currentEl = document.getElementById('currentQ');
-  const prevBtn = document.getElementById('prevBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  const submitBtn = document.getElementById('submitBtn');
-
-  function fmt(s) {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0');
-  }
-
-  function show(i) {
-    panels.forEach((p, j) => p.classList.toggle('hidden', j !== i));
-    current = i;
-    currentEl.textContent = i + 1;
-    prevBtn.disabled = i === 0;
-    nextBtn.classList.toggle('hidden', i === total - 1);
-    submitBtn.classList.toggle('hidden', i !== total - 1);
-  }
-
-  prevBtn.addEventListener('click', () => show(current - 1));
-  nextBtn.addEventListener('click', () => show(current + 1));
-
-  const tick = setInterval(() => {
-    remaining--;
-    timerEl.textContent = fmt(Math.max(0, remaining));
-    if (remaining <= 0) {
-      clearInterval(tick);
-      document.getElementById('timeTaken').value = Math.floor((Date.now() - startTime) / 1000);
-      document.getElementById('examForm').submit();
-    }
-  }, 1000);
-  timerEl.textContent = fmt(remaining);
-
-  document.getElementById('examForm').addEventListener('submit', function () {
-    document.getElementById('timeTaken').value = Math.floor((Date.now() - startTime) / 1000);
-    clearInterval(tick);
-  });
-
-  if (total === 0) {
-    submitBtn.classList.remove('hidden');
-    nextBtn.classList.add('hidden');
-    prevBtn.classList.add('hidden');
-    currentEl.textContent = '0';
-  } else {
-    show(0);
-  }
-})();
-</script>
-
-<?php require __DIR__ . '/includes/footer.php'; ?>
+$qs = array_filter([
+    'course' => $courseSlug,
+    'test' => $testSlug,
+    'return' => trim((string) ($_GET['return'] ?? '')) ?: null,
+]);
+redirect('exam_running.php?' . http_build_query($qs));

@@ -1,11 +1,10 @@
 <?php
 $waApi = admin_url('whatsapp_api.php');
+$adminPageTitle = 'WhatsApp హబ్';
+$adminPageSubtitle = 'సబ్-కోర్స్ గ్రూప్ లింక్ · మీడియా/టెక్స్ట్ బ్రాడ్కాస్ట్';
+require __DIR__ . '/../partials/page_header.php';
 ?>
 <div class="font-telugu max-w-4xl mx-auto" id="waHubRoot" data-api="<?= admin_e($waApi) ?>">
-  <header class="mb-6 pb-4 border-b border-[#E3E6F0]">
-    <h1 class="text-2xl font-bold text-slate-900 tracking-tight">WhatsApp హబ్</h1>
-    <p class="text-sm text-slate-600 mt-1">సబ్-కోర్స్ వారీ గ్రూప్ లింక్ · మీడియా/టెక్స్ట్ బ్రాడ్కాస్ట్ (API కీ అవసరం లేదు)</p>
-  </header>
 
   <p id="waMigrateHint" class="hidden mb-4 text-sm text-amber-900 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 font-telugu">
     డేటాబేస్ మైగ్రేషన్: <code class="text-xs">php database/migrate_whatsapp_sub_course_groups.php</code>

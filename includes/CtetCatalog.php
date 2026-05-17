@@ -10,7 +10,8 @@ final class CtetCatalog
 {
     private const COURSE_SLUG = 'ctet';
 
-    private const LEGACY_PAPER2_SLUG = 'ctet-paper-2';
+    /** Retired combined Paper II card (replaced by ctet-paper-2 + stream programmes). */
+    private const LEGACY_PAPER2_SLUG = 'ctet-paper-2-legacy';
 
     /** @return list<string> */
     public static function structuredProgrammeSlugs(): array
@@ -23,11 +24,15 @@ final class CtetCatalog
      */
     public static function programmes(): array
     {
-        return [
-            ['slug' => 'ctet-paper-1', 'name' => 'CTET Paper I', 'name_te' => 'సీటెట్ పేపర్ 1', 'sort' => 10],
-            ['slug' => 'ctet-p2-maths-science', 'name' => 'CTET Paper II — Maths & Science', 'name_te' => 'పేపర్ 2 — మ్యాథ్స్ అండ్ సైన్స్', 'sort' => 20],
-            ['slug' => 'ctet-p2-social-studies', 'name' => 'CTET Paper II — Social Studies', 'name_te' => 'పేపర్ 2 — సోషల్ స్టడీస్ / సోషల్ సైన్స్', 'sort' => 30],
+        require_once __DIR__ . '/CourseCatalogRegistry.php';
+        $rows = [
+            ['slug' => 'ctet-paper-1', 'name' => 'CTET Paper I', 'name_te' => 'పేపర్ వన్', 'sort' => 1],
+            ['slug' => 'ctet-paper-2', 'name' => 'CTET Paper II', 'name_te' => 'పేపర్ 2', 'sort' => 2],
+            ['slug' => 'ctet-p2-maths-science', 'name' => 'CTET Paper II — Maths & Science', 'name_te' => 'పేపర్-2 మ్యాథమెటిక్స్ అండ్ సైన్స్', 'sort' => 3],
+            ['slug' => 'ctet-p2-social-studies', 'name' => 'CTET Paper II — Social Studies', 'name_te' => 'పేపర్ టు సోషల్ స్టడీస్', 'sort' => 4],
         ];
+
+        return CourseCatalogRegistry::applySortToProgrammes('ctet', $rows);
     }
 
     /**
@@ -212,6 +217,13 @@ final class CtetCatalog
         self::syncPivotForSlug(
             $pdo,
             $courseId,
+            'ctet-paper-2',
+            self::paper1SubjectRows(),
+            static fn (array $r): string => self::paper1SubjectSlug($r[0])
+        );
+        self::syncPivotForSlug(
+            $pdo,
+            $courseId,
             'ctet-p2-maths-science',
             self::paper2MathsScienceSubjectRows(),
             static fn (array $r): string => self::paper2MathsScienceSubjectSlug($r[0])
@@ -305,7 +317,6 @@ final class CtetCatalog
             throw new RuntimeException('Course ctet not found.');
         }
 
-        self::dropLegacyPaper2Programme($pdo, $courseId);
         self::ensureSubjects($pdo);
         self::ensureProgrammes($pdo, $courseId);
         self::syncAllProgrammePivots($pdo, $courseId);

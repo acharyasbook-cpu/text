@@ -11,11 +11,14 @@ $titleEn = $titleEn ?? '';
 $titleTe = $titleTe ?? '';
 $eyebrow = $eyebrow ?? '';
 $description = $description ?? '';
+require_once dirname(__DIR__, 3) . '/MediaAvatarHelper.php';
+
 $bannerPath = trim((string) ($bannerPath ?? ''));
 $bannerAlt = (string) ($bannerAlt ?? $titleEn);
-$imgUrl = $bannerPath !== '' ? acharya_media_url($bannerPath) : '';
-$imgVer = $bannerPath !== '' ? public_media_cache_version($bannerPath) : 0;
 $displayTitle = $titleTe !== '' ? $titleTe : $titleEn;
+$imgUrl = MediaAvatarHelper::resolvedUrl($bannerPath !== '' ? $bannerPath : null);
+$imgVer = $imgUrl !== '' ? MediaAvatarHelper::cacheVersion($bannerPath) : 0;
+$heroPalette = MediaAvatarHelper::palette($displayTitle !== '' ? $displayTitle : 'hero');
 ?>
 <header class="programme-hero border border-[#E3E6F0] rounded-xl bg-white overflow-hidden mb-8 shadow-sm">
   <div class="grid lg:grid-cols-2 gap-0">
@@ -40,8 +43,10 @@ $displayTitle = $titleTe !== '' ? $titleTe : $titleEn;
            class="programme-banner-img w-full h-full min-h-[220px] lg:min-h-[280px]"
            loading="eager" />
       <?php else: ?>
-      <div class="programme-banner-placeholder w-full h-full min-h-[220px] lg:min-h-[280px] flex items-center justify-center p-8">
-        <span class="font-telugu font-bold text-xl text-slate-600 text-center leading-snug"><?= e($displayTitle) ?></span>
+      <div class="programme-banner-placeholder media-slot-avatar media-slot-avatar--banner font-telugu w-full h-full min-h-[220px] lg:min-h-[280px]"
+           style="background:<?= e($heroPalette['background']) ?>;color:<?= e($heroPalette['color']) ?>;"
+           role="img" aria-label="<?= e($displayTitle) ?>">
+        <span class="media-slot-avatar-text media-slot-avatar-text--full"><?= e($displayTitle) ?></span>
       </div>
       <?php endif; ?>
     </div>

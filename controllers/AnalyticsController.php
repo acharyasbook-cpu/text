@@ -88,15 +88,17 @@ final class AnalyticsController
             throw new RuntimeException('Cannot open output stream');
         }
         fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
-        fputcsv($out, ['ID', 'Name', 'Email', 'Phone', 'Registered', 'Last Active', 'Paid', 'Exams', 'Avg Score %']);
+        fputcsv($out, ['ID', 'Name', 'Email', 'Phone', 'Plan', 'Subscribed', 'Expires', 'Last Login', 'Paid', 'Exams', 'Avg Score %']);
         foreach ($rows as $r) {
             fputcsv($out, [
                 $r['id'] ?? '',
                 $r['name'] ?? '',
                 $r['email'] ?? '',
                 $r['phone'] ?? '',
-                $r['created_at'] ?? '',
-                $r['last_active_at'] ?? '',
+                AnalyticsRepository::formatPlanCode((string) ($r['active_plan_code'] ?? '')),
+                $r['subscription_started_at'] ?? $r['created_at'] ?? '',
+                $r['subscription_expires_at'] ?? '',
+                $r['last_login_at'] ?? $r['last_active_at'] ?? '',
                 !empty($r['is_paid']) ? 'Yes' : 'No',
                 $r['exams_taken'] ?? 0,
                 $r['avg_score_pct'] ?? '',

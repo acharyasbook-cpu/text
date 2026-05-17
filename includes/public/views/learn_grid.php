@@ -1,5 +1,6 @@
 <?php
 /** @var array<string,mixed> $course @var list<array<string,mixed>> $subCourses */
+require_once dirname(__DIR__, 2) . '/MediaAvatarHelper.php';
 $courseSlug = (string) $course['slug'];
 ?>
 <section>
@@ -15,8 +16,8 @@ $courseSlug = (string) $course['slug'];
   <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-5 lg:gap-6" id="learnSubCourseGrid" data-media-scope="sub_courses" data-course-id="<?= (int) $course['id'] ?>">
     <?php foreach ($subCourses as $sc):
         $imgPath = trim((string) ($sc['image_path'] ?? ''));
-        $img = $imgPath !== '' ? acharya_media_url($imgPath) : '';
-        $imgVer = $imgPath !== '' ? public_media_cache_version($imgPath) : 0;
+        $img = MediaAvatarHelper::resolvedUrl($imgPath !== '' ? $imgPath : null);
+        $imgVer = $img !== '' ? MediaAvatarHelper::cacheVersion($imgPath) : 0;
         $titleTe = trim((string) ($sc['name_te'] ?? ''));
         $displayTitle = $titleTe !== '' ? $titleTe : (string) ($sc['name'] ?? '');
         $href = public_sub_course_workspace_url($courseSlug, $sc['slug']);

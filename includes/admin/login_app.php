@@ -23,6 +23,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $error = 'Invalid administrator credentials.';
 }
+$adminCss = admin_site_url('assets/css/admin-premium.css');
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -31,45 +32,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login | Acharya Books</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="<?= admin_e($adminCss) ?>?v=1" />
 </head>
-<body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-blue-900 flex items-center justify-center p-4 font-sans">
+<body class="admin-premium-shell min-h-screen flex items-center justify-center p-4" style="background:#F8F9FA">
   <div class="w-full max-w-md">
     <div class="text-center mb-8">
-      <h1 class="text-2xl font-bold text-white">Acharya Books</h1>
-      <p class="text-slate-400 text-sm mt-1">Administrator Control Panel</p>
+      <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Acharya Books</h1>
+      <p class="text-slate-500 text-sm mt-1 font-telugu">ఎంటర్‌ప్రైజ్ అడ్మిన్ ప్యానెల్</p>
     </div>
-    <div class="bg-white rounded-2xl shadow-2xl p-8 border border-slate-200/20">
+    <div class="admin-card p-8">
       <h2 class="text-xl font-semibold text-slate-800">Secure Sign In</h2>
       <p class="text-sm text-slate-500 mt-1">Authorized personnel only</p>
 
       <?php if ($error): ?>
-        <p class="mt-4 text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg px-4 py-3"><?= admin_e($error) ?></p>
+        <p class="mt-4 admin-alert-error text-sm"><?= admin_e($error) ?></p>
       <?php endif; ?>
 
       <form method="post" class="mt-6 space-y-4" autocomplete="off">
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Email</label>
-          <input type="email" name="email" required
-                 class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none" />
+          <label class="admin-label block mb-1">Email</label>
+          <input type="email" name="email" required class="admin-input" />
         </div>
         <div>
-          <label class="block text-sm font-medium text-slate-700 mb-1">Password</label>
-          <input type="password" name="password" required
-                 class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none" />
+          <label class="admin-label block mb-1">Password</label>
+          <input type="password" name="password" required class="admin-input" />
         </div>
-        <button type="submit"
-                class="w-full py-3 bg-blue-700 hover:bg-blue-800 text-white font-semibold rounded-lg transition-colors shadow-lg shadow-blue-900/20">
-          Sign In to Dashboard
-        </button>
+        <button type="submit" class="admin-btn admin-btn-primary w-full py-2.5">Sign in</button>
       </form>
-      <p class="mt-6 text-xs text-center text-slate-400">
-        First time? Run <a href="<?= admin_e(admin_site_url('admin_setup.php')) ?>" class="text-blue-600 hover:underline">admin_setup.php</a>
+      <p class="mt-6 text-center text-sm text-slate-500">
+        <a href="<?= admin_e(admin_site_url('index.php')) ?>" class="text-indigo-600 font-semibold hover:underline">← Back to public site</a>
       </p>
     </div>
-    <p class="text-center text-xs text-slate-500 mt-6">
-      <a href="<?= admin_e(admin_site_url('index.php')) ?>" class="hover:text-white transition-colors">← Back to public site</a>
-    </p>
   </div>
 </body>
 </html>

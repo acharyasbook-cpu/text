@@ -201,7 +201,7 @@ class AdminRepository
         }
 
         return db()->query(
-            'SELECT sc.id, sc.slug, sc.name, sc.is_active'
+            'SELECT sc.id, sc.course_id, sc.slug, sc.name, sc.is_active'
             . (SchemaHelper::columnExists('sub_courses', 'status') ? ', sc.status' : '')
             . ', c.name AS course_name, c.slug AS course_slug
             FROM sub_courses sc JOIN courses c ON c.id = sc.course_id
@@ -905,7 +905,7 @@ class AdminRepository
 
         if (SchemaHelper::testBundleEnabled()) {
             $tt = $data['test_type'] ?? 'topic';
-            if (in_array($tt, ['division', 'revision', 'grand', 'model'], true)) {
+            if (in_array($tt, ['division', 'sub_grand', 'revision', 'grand', 'model'], true)) {
                 $raw = $data['component_test_ids'] ?? [];
                 $ids = is_array($raw) ? array_map('intval', $raw) : [];
                 $this->syncTestBundle($tid, $ids);
@@ -1090,7 +1090,7 @@ class AdminRepository
         $courses = $this->allCourses();
         if (SchemaHelper::hierarchyFourTier()) {
             foreach ($courses as &$c) {
-                $st = db()->prepare('SELECT * FROM sub_courses WHERE course_id=? ORDER BY sort_order, name');
+                $st = db()->prepare('SELECT * FROM sub_courses WHERE course_id=? ORDER BY sort_order ASC, id ASC');
                 $st->execute([(int) $c['id']]);
                 $c['sub_courses_list'] = $st->fetchAll();
                 foreach ($c['sub_courses_list'] as &$sc) {
@@ -1401,6 +1401,172 @@ class AdminRepository
         return $st->fetchAll();
     }
 
+    /**
+     * Master subject catalog search (optionally scoped to sub-course link state).
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function searchSubjectsMaster(string $q, int $subCourseId = 0, int $limit = 50): array
+    {
+        $limit = max(1, min(100, $limit));
+        $q = trim($q);
+        $like = '%' . $q . '%';
+        $order = SchemaHelper::sqlOrderBySort('s.sort_order', 's.id');
+
+        if ($subCourseId > 0 && SchemaHelper::hierarchyFourTier() && SchemaHelper::hasTable('sub_course_subjects')) {
+            $sql = "SELECT s.id, s.slug, s.name, s.name_te,
+                    CASE WHEN scs.subject_id IS NOT NULL THEN 1 ELSE 0 END AS is_linked
+                    FROM subjects s
+                    LEFT JOIN sub_course_subjects scs ON scs.subject_id = s.id AND scs.sub_course_id = ?
+                    WHERE 1=1";
+            $params = [$subCourseId];
+            if ($q !== '') {
+                $sql .= " AND (s.name LIKE ? OR COALESCE(s.name_te, '') LIKE ? OR s.slug LIKE ?)";
+                array_push($params, $like, $like, $like);
+            }
+            $sql .= " ORDER BY is_linked DESC, {$order} LIMIT {$limit}";
+            $st = db()->prepare($sql);
+            $st->execute($params);
+
+            return $st->fetchAll();
+        }
+
+        $sql = "SELECT s.id, s.slug, s.name, s.name_te, 0 AS is_linked FROM subjects s WHERE 1=1";
+        $params = [];
+        if ($q !== '') {
+            $sql .= " AND (s.name LIKE ? OR COALESCE(s.name_te, '') LIKE ? OR s.slug LIKE ?)";
+            array_push($params, $like, $like, $like);
+        }
+        $sql .= " ORDER BY {$order} LIMIT {$limit}";
+        $st = db()->prepare($sql);
+        $st->execute($params);
+
+        return $st->fetchAll();
+    }
+
+    public function linkSubjectToSubCourse(int $subCourseId, int $subjectId): void
+    {
+        if ($subCourseId < 1 || $subjectId < 1) {
+            throw new InvalidArgumentException('sub_course_id and subject_id required');
+        }
+        if (!SchemaHelper::hierarchyFourTier() || !SchemaHelper::hasTable('sub_course_subjects')) {
+            throw new RuntimeException('Four-tier hierarchy required to link subjects.');
+        }
+
+        $chk = db()->prepare(
+            'SELECT 1 FROM sub_course_subjects WHERE sub_course_id=? AND subject_id=? LIMIT 1'
+        );
+        $chk->execute([$subCourseId, $subjectId]);
+        if ($chk->fetchColumn()) {
+            $this->ensureSubjectPivotLive($subCourseId, $subjectId);
+
+            return;
+        }
+
+        $sortSt = db()->prepare(
+            'SELECT COALESCE(MAX(sort_order), -1) + 1 FROM sub_course_subjects WHERE sub_course_id=?'
+        );
+        $sortSt->execute([$subCourseId]);
+        $sort = (int) $sortSt->fetchColumn();
+
+        if (SchemaHelper::columnExists('sub_course_subjects', 'status')
+            && SchemaHelper::columnExists('sub_course_subjects', 'is_active')) {
+            db()->prepare(
+                'INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order, status, is_active) VALUES (?,?,?,1,1)'
+            )->execute([$subCourseId, $subjectId, $sort]);
+        } elseif (SchemaHelper::columnExists('sub_course_subjects', 'is_active')) {
+            db()->prepare(
+                'INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order, is_active) VALUES (?,?,?,1)'
+            )->execute([$subCourseId, $subjectId, $sort]);
+        } else {
+            db()->prepare(
+                'INSERT INTO sub_course_subjects (sub_course_id, subject_id, sort_order) VALUES (?,?,?)'
+            )->execute([$subCourseId, $subjectId, $sort]);
+        }
+
+        $this->ensureSubjectPivotLive($subCourseId, $subjectId);
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public function searchTopicsForSubject(int $subjectId, string $q, int $limit = 50): array
+    {
+        if ($subjectId < 1) {
+            return [];
+        }
+        $limit = max(1, min(100, $limit));
+        $q = trim($q);
+        $tbl = SchemaHelper::topicsTable();
+        $order = SchemaHelper::sqlOrderBySort('sort_order', 'id');
+        $sql = "SELECT id, slug, title, title_te, sort_order,
+                COALESCE(has_sub_topics, 0) AS has_sub_topics
+                FROM `{$tbl}` WHERE subject_id=?";
+        $params = [$subjectId];
+        if ($q !== '') {
+            $like = '%' . $q . '%';
+            $sql .= " AND (title LIKE ? OR COALESCE(title_te, '') LIKE ? OR slug LIKE ?)";
+            array_push($params, $like, $like, $like);
+        }
+        $sql .= " ORDER BY {$order} LIMIT {$limit}";
+        $st = db()->prepare($sql);
+        $st->execute($params);
+
+        return $st->fetchAll();
+    }
+
+    /**
+     * @return list<array<string,mixed>>
+     */
+    public function searchSubTopicsForTopic(int $topicId, string $q, int $limit = 50): array
+    {
+        if ($topicId < 1 || !SchemaHelper::hasTable('sub_topics')) {
+            return [];
+        }
+        $limit = max(1, min(100, $limit));
+        $q = trim($q);
+        $sql = 'SELECT id, slug, sub_topic_name, sub_topic_name_te, sort_order, question_count
+                FROM sub_topics WHERE topic_id=?';
+        $params = [$topicId];
+        if ($q !== '') {
+            $like = '%' . $q . '%';
+            $sql .= " AND (sub_topic_name LIKE ? OR COALESCE(sub_topic_name_te, '') LIKE ? OR slug LIKE ?)";
+            array_push($params, $like, $like, $like);
+        }
+        $sql .= ' ORDER BY sort_order ASC, id ASC LIMIT ' . $limit;
+        $st = db()->prepare($sql);
+        $st->execute($params);
+
+        return $st->fetchAll();
+    }
+
+    public function createSubTopicQuick(int $topicId, string $name, ?string $nameTe = null): int
+    {
+        if ($topicId < 1 || trim($name) === '') {
+            throw new InvalidArgumentException('topic_id and sub_topic name required');
+        }
+        if (!SchemaHelper::hasTable('sub_topics')) {
+            throw new RuntimeException('sub_topics table not available.');
+        }
+        $name = trim($name);
+        $nameTe = $nameTe !== null && trim($nameTe) !== '' ? trim($nameTe) : null;
+        $slug = slugify($name);
+        $sortSt = db()->prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 FROM sub_topics WHERE topic_id=?');
+        $sortSt->execute([$topicId]);
+        $sort = (int) $sortSt->fetchColumn();
+        db()->prepare(
+            'INSERT INTO sub_topics (topic_id, sub_topic_name, sub_topic_name_te, slug, question_count, sort_order, status)
+             VALUES (?,?,?,?,50,?,1)'
+        )->execute([$topicId, $name, $nameTe, $slug, $sort]);
+        $newId = (int) db()->lastInsertId();
+        $tbl = SchemaHelper::topicsTable();
+        if (SchemaHelper::columnExists($tbl, 'has_sub_topics')) {
+            db()->prepare("UPDATE `{$tbl}` SET has_sub_topics=1 WHERE id=?")->execute([$topicId]);
+        }
+
+        return $newId;
+    }
+
     /** @return array<string,mixed>|null */
     public function getTopicContentManager(int $topicId): ?array
     {
@@ -1519,6 +1685,10 @@ class AdminRepository
             if (SchemaHelper::topicNotesEnabledColumn()) {
                 $sets[] = 'notes_enabled=?';
                 $params[] = $notesEnabled;
+            }
+            if (SchemaHelper::topicCanDownloadEnabled() && array_key_exists('can_download', $data)) {
+                $sets[] = 'can_download=?';
+                $params[] = !empty($data['can_download']) ? 1 : 0;
             }
             if (SchemaHelper::topicNotesBindEnabled()) {
                 $sets[] = 'notes_bind_sub_topic_id=?';
@@ -2053,6 +2223,7 @@ class AdminRepository
         $this->saveTopicContentManager($topicId, [
             'has_sub_topics' => !empty($data['has_sub_topics']),
             'notes_enabled' => !empty($data['notes_enabled']),
+            'can_download' => !empty($data['can_download']),
             'notes_content' => (string) ($data['notes_content'] ?? ''),
             'sub_topics' => $data['sub_topics'] ?? [],
             'question_count' => (int) ($data['question_count'] ?? 50),

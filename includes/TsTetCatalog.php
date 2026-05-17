@@ -10,7 +10,7 @@ final class TsTetCatalog
 {
     private const COURSE_SLUG = 'ts-tet';
 
-    private const LEGACY_PAPER2_SLUG = 'ts-tet-paper-2';
+    private const LEGACY_PAPER2_SLUG = 'ts-tet-paper-2-legacy';
 
     /** @return list<string> */
     public static function structuredProgrammeSlugs(): array
@@ -23,11 +23,15 @@ final class TsTetCatalog
      */
     public static function programmes(): array
     {
-        return [
-            ['slug' => 'ts-tet-paper-1', 'name' => 'TS TET Paper I', 'name_te' => 'టీఎస్ టెట్ పేపర్ 1', 'sort' => 10],
-            ['slug' => 'ts-tet-p2-maths-science', 'name' => 'TS TET Paper II — Mathematics & Science', 'name_te' => 'పేపర్ 2 — మ్యాథమెటిక్స్ అండ్ సైన్స్', 'sort' => 20],
-            ['slug' => 'ts-tet-p2-social-studies', 'name' => 'TS TET Paper II — Social Studies', 'name_te' => 'పేపర్ 2 — సోషల్ స్టడీస్', 'sort' => 30],
+        require_once __DIR__ . '/CourseCatalogRegistry.php';
+        $rows = [
+            ['slug' => 'ts-tet-paper-1', 'name' => 'TS TET Paper I', 'name_te' => 'పేపర్ వన్ ఏ', 'sort' => 1],
+            ['slug' => 'ts-tet-paper-1-special', 'name' => 'TS TET Paper I Special', 'name_te' => 'పేపర్ వన్ బి స్పెషల్', 'sort' => 2],
+            ['slug' => 'ts-tet-p2-maths-science', 'name' => 'TS TET Paper II — Mathematics & Science', 'name_te' => 'పేపర్ 2a మ్యాథమెటిక్స్ అండ్ సైన్స్', 'sort' => 3],
+            ['slug' => 'ts-tet-p2-social-studies', 'name' => 'TS TET Paper II — Social Studies', 'name_te' => 'పేపర్ టు ఏ సోషల్ స్టడీస్', 'sort' => 4],
         ];
+
+        return CourseCatalogRegistry::applySortToProgrammes('ts-tet', $rows);
     }
 
     /**
@@ -86,6 +90,26 @@ final class TsTetCatalog
         return 'ts-tet-p1-' . $suffix;
     }
 
+    public static function paper1SpecialSubjectSlug(string $suffix): string
+    {
+        return 'ts-tet-p1s-' . $suffix;
+    }
+
+    /**
+     * @return list<array{0:string,1:string,2:string,3:int}>
+     */
+    public static function paper1SpecialSubjectRows(): array
+    {
+        return [
+            ['child-development-pedagogy', 'Child Development & Pedagogy (Special Education)', 'బాల వికాసం & బోధనాశాస్త్రం (ప్రత్యేక విద్య)', 1],
+            ['language-i', 'Language I (Special Education)', 'భాషా I (ప్రత్యేక విద్య)', 2],
+            ['language-ii-english', 'Language II — English (Special Education)', 'భాషా II — ఇంగ్లీష్ (ప్రత్యేక విద్య)', 3],
+            ['mathematics', 'Mathematics (Special Education)', 'గణితం (ప్రత్యేక విద్య)', 4],
+            ['environmental-studies', 'Environmental Studies (Special Education)', 'పర్యావరణ అధ్యయనాలు (ప్రత్యేక విద్య)', 5],
+            ['special-education-methodology', 'Special Education Methodology', 'ప్రత్యేక విద్యా పద్ధతిశాస్త్రం', 6],
+        ];
+    }
+
     public static function paper2MathsScienceSubjectSlug(string $suffix): string
     {
         return 'ts-tet-p2-ms-' . $suffix;
@@ -106,6 +130,9 @@ final class TsTetCatalog
 
         foreach (self::paper1SubjectRows() as $row) {
             $ins->execute([self::paper1SubjectSlug($row[0]), $row[1], $row[2], $row[3]]);
+        }
+        foreach (self::paper1SpecialSubjectRows() as $row) {
+            $ins->execute([self::paper1SpecialSubjectSlug($row[0]), $row[1], $row[2], $row[3]]);
         }
         foreach (self::paper2MathsScienceSubjectRows() as $row) {
             $ins->execute([self::paper2MathsScienceSubjectSlug($row[0]), $row[1], $row[2], $row[3]]);
@@ -176,6 +203,13 @@ final class TsTetCatalog
             'ts-tet-paper-1',
             self::paper1SubjectRows(),
             static fn (array $r): string => self::paper1SubjectSlug($r[0])
+        );
+        self::syncPivotForSlug(
+            $pdo,
+            $courseId,
+            'ts-tet-paper-1-special',
+            self::paper1SpecialSubjectRows(),
+            static fn (array $r): string => self::paper1SpecialSubjectSlug($r[0])
         );
         self::syncPivotForSlug(
             $pdo,

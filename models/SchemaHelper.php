@@ -8,10 +8,10 @@ final class SchemaHelper
     private static ?bool $subjectStatus = null;
     private static ?bool $testStatus = null;
 
-    /** Safe ORDER BY for hierarchy lists (NULL/zero sort_order still visible). */
+    /** Strict catalog order — admin-controlled sort_order only (tie-break by id). */
     public static function sqlOrderBySort(string $sortCol = 'sort_order', string $idCol = 'id'): string
     {
-        return "COALESCE(NULLIF({$sortCol}, 0), {$idCol}) ASC, {$idCol} ASC";
+        return "{$sortCol} ASC, {$idCol} ASC";
     }
 
     /**
@@ -244,10 +244,22 @@ final class SchemaHelper
         return self::columnExists(self::topicsTable(), 'mcq_content');
     }
 
+    public static function topicCanDownloadEnabled(): bool
+    {
+        return self::columnExists(self::topicsTable(), 'can_download');
+    }
+
     public static function subCourseTermMatrixEnabled(): bool
     {
         return self::hasTable('sub_course_term_boxes')
             && self::hasTable('sub_course_term_schedule');
+    }
+
+    public static function scheduleTestManagerEnabled(): bool
+    {
+        return self::hasTable('st_schedule_days')
+            && self::hasTable('st_schedule_rows')
+            && self::hasTable('st_schedule_config');
     }
 
     public static function imagePathEnabled(string $table): bool

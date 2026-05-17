@@ -24,6 +24,7 @@ require_once dirname(__DIR__) . '/includes/TsDscCatalog.php';
 require_once dirname(__DIR__) . '/includes/ApTetCatalog.php';
 require_once dirname(__DIR__) . '/includes/TsTetCatalog.php';
 require_once dirname(__DIR__) . '/includes/CtetCatalog.php';
+require_once dirname(__DIR__) . '/includes/CourseCatalogRegistry.php';
 
 $pdo = getDBConnection();
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
@@ -186,17 +187,10 @@ foreach ($sgtSubjectRowsTs as $row) {
 ApSaCatalog::ensureSubjects($pdo);
 ApDscTgtPgtCatalog::ensureSubjects($pdo);
 
-/** Allowed sub_course.slug values per main course (prevents DSC cards from appearing “valid” on TET rows). */
+/** Allowed sub_course.slug values per main course (canonical registry whitelist). */
 function mh_allowed_subcourse_slugs_for_course(string $mcSlug): array
 {
-    require_once dirname(__DIR__) . '/includes/ApDscTgtPgtCatalog.php';
-
-    return match ($mcSlug) {
-        'ap-tet' => ApTetCatalog::structuredProgrammeSlugs(),
-        'ts-tet' => TsTetCatalog::structuredProgrammeSlugs(),
-        'ctet' => CtetCatalog::structuredProgrammeSlugs(),
-        default => ApDscTgtPgtCatalog::standardFlagshipSlugs(),
-    };
+    return CourseCatalogRegistry::hierarchyWhitelistFor($mcSlug);
 }
 
 function mh_exam_short_prefix(string $mcSlug): string
@@ -261,6 +255,92 @@ function mh_resolveSubjectId(PDO $pdo, string $preferred, array $aliases): int
     throw new RuntimeException('Subject slug missing after insert: ' . $preferred);
 }
 
+function mh_applyRegistrySubCourseLabels(PDO $pdo, string $mcSlug, int $courseId): void
+{
+    $hasTe = mh_colExists($pdo, 'sub_courses', 'name_te');
+    $upd = $pdo->prepare(
+        'UPDATE sub_courses SET name=?, sort_order=?, status=1, is_active=1'
+        . ($hasTe ? ', name_te=?' : '')
+        . ' WHERE course_id=? AND slug=?'
+    );
+    foreach (CourseCatalogRegistry::subCoursesFor($mcSlug) as $row) {
+        $params = [$row['name'], $row['sort_order']];
+        if ($hasTe) {
+            $params[] = $row['name_te'];
+        }
+        $params[] = $courseId;
+        $params[] = $row['slug'];
+        $upd->execute($params);
+    }
+}
+
+function mh_ensurePlansForCourse(PDO $pdo, PDOStatement $plansInsert, int $courseId): void
+{
+    $stAll = $pdo->prepare('SELECT id FROM sub_courses WHERE course_id = ? ORDER BY sort_order ASC, id ASC');
+    $stAll->execute([$courseId]);
+    $defaults = [
+        ['6_months', '6 Months (₹499)', 499.00, 6],
+        ['1_year', '1 Year (₹699)', 699.00, 12],
+        ['until_exam', 'Up to Exam (₹999)', 999.00, null],
+    ];
+    while ($rid = $stAll->fetchColumn()) {
+        $scid = (int) $rid;
+        foreach ($defaults as [$code, $label, $price, $months]) {
+            $plansInsert->execute([$scid, $code, $label, $price, $months]);
+        }
+    }
+}
+
+function mh_syncApDscSgtPivots(PDO $pdo, int $courseId, PDOStatement $pivotIns): void
+{
+    $stId = $pdo->prepare('SELECT id FROM sub_courses WHERE course_id = ? AND slug = ? LIMIT 1');
+    $stId->execute([$courseId, 'sgt']);
+    $sgtId = (int) $stId->fetchColumn();
+    if ($sgtId < 1) {
+        return;
+    }
+    $pdo->prepare('DELETE FROM sub_course_subjects WHERE sub_course_id=?')->execute([$sgtId]);
+    $order = 0;
+    foreach ([
+        'gk-current-affairs',
+        'perspective-education',
+        'telugu',
+        'english',
+        'mathematics',
+        'science',
+        'social-studies',
+        'tri-methods',
+    ] as $skey) {
+        $ssid = 'ap-dsc-sgt-' . $skey;
+        $pivotIns->execute([$sgtId, mh_resolveSubjectId($pdo, $ssid, []), $order, 1]);
+        ++$order;
+    }
+}
+
+function mh_syncTsDscSgtPivots(PDO $pdo, int $courseId, PDOStatement $pivotIns): void
+{
+    $stId = $pdo->prepare('SELECT id FROM sub_courses WHERE course_id = ? AND slug = ? LIMIT 1');
+    $stId->execute([$courseId, 'sgt']);
+    $sgtId = (int) $stId->fetchColumn();
+    if ($sgtId < 1) {
+        return;
+    }
+    $pdo->prepare('DELETE FROM sub_course_subjects WHERE sub_course_id=?')->execute([$sgtId]);
+    $order = 0;
+    foreach ([
+        'gk-current-affairs',
+        'perspective-education',
+        'content-mathematics',
+        'content-science',
+        'content-social-studies',
+        'tri-methods',
+    ] as $skey) {
+        $ssid = 'ts-dsc-sgt-' . $skey;
+        $pivotIns->execute([$sgtId, mh_resolveSubjectId($pdo, $ssid, []), $order, 1]);
+        ++$order;
+    }
+}
+
 /** @return array<int,array<string,mixed>> */
 function mh_seedSubCourses(PDO $pdo, array $slugByCourse, array $subCourseDefines, array $paperNames, bool $truncateProgrammes): int
 {
@@ -301,6 +381,7 @@ function mh_seedSubCourses(PDO $pdo, array $slugByCourse, array $subCourseDefine
             ApTetCatalog::ensureSubjects($pdo);
             ApTetCatalog::syncAllProgrammePivots($pdo, (int) $courseId);
             ApTetCatalog::ensurePlansForProgrammes($pdo, (int) $courseId);
+            mh_applyRegistrySubCourseLabels($pdo, 'ap-tet', (int) $courseId);
             $countSc += count(ApTetCatalog::programmes());
 
             if ($plansInsert) {
@@ -324,6 +405,7 @@ function mh_seedSubCourses(PDO $pdo, array $slugByCourse, array $subCourseDefine
 
         if ($mcSlug === 'ts-tet') {
             TsTetCatalog::standardizeTsTet($pdo);
+            mh_applyRegistrySubCourseLabels($pdo, 'ts-tet', (int) $courseId);
             $countSc += count(TsTetCatalog::programmes());
 
             continue;
@@ -331,7 +413,42 @@ function mh_seedSubCourses(PDO $pdo, array $slugByCourse, array $subCourseDefine
 
         if ($mcSlug === 'ctet') {
             CtetCatalog::standardizeCtet($pdo);
+            mh_applyRegistrySubCourseLabels($pdo, 'ctet', (int) $courseId);
             $countSc += count(CtetCatalog::programmes());
+
+            continue;
+        }
+
+        if ($mcSlug === 'ap-dsc') {
+            ApSaCatalog::ensureSubjects($pdo);
+            ApDscTgtPgtCatalog::ensureSubjects($pdo);
+            ApSaCatalog::ensureProgrammes($pdo, (int) $courseId);
+            ApDscTgtPgtCatalog::ensureTgtProgrammes($pdo, (int) $courseId);
+            ApDscTgtPgtCatalog::ensurePgtProgrammes($pdo, (int) $courseId);
+            mh_syncApDscSgtPivots($pdo, (int) $courseId, $pivotIns);
+            ApSaCatalog::syncProgrammePivots($pdo, (int) $courseId);
+            ApDscTgtPgtCatalog::syncTgtProgrammePivots($pdo, (int) $courseId);
+            ApDscTgtPgtCatalog::syncPgtProgrammePivots($pdo, (int) $courseId);
+            mh_applyRegistrySubCourseLabels($pdo, 'ap-dsc', (int) $courseId);
+            $countSc += count(CourseCatalogRegistry::subCoursesFor('ap-dsc'));
+            if ($plansInsert) {
+                mh_ensurePlansForCourse($pdo, $plansInsert, (int) $courseId);
+            }
+
+            continue;
+        }
+
+        if ($mcSlug === 'ts-dsc') {
+            TsDscCatalog::ensureSubjects($pdo);
+            TsDscCatalog::ensureSaProgrammes($pdo, (int) $courseId);
+            mh_syncTsDscSgtPivots($pdo, (int) $courseId, $pivotIns);
+            TsDscCatalog::syncSaProgrammePivots($pdo, (int) $courseId);
+            mh_applyRegistrySubCourseLabels($pdo, 'ts-dsc', (int) $courseId);
+            $countSc += count(CourseCatalogRegistry::subCoursesFor('ts-dsc'));
+            if ($plansInsert) {
+                mh_ensurePlansForCourse($pdo, $plansInsert, (int) $courseId);
+                TsDscCatalog::ensurePlansForTsStructuredProgrammes($pdo, (int) $courseId);
+            }
 
             continue;
         }

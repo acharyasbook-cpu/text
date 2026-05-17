@@ -25,6 +25,7 @@ require_once dirname(__DIR__, 2) . '/includes/ImageUploadService.php';
 require_once dirname(__DIR__, 2) . '/includes/public_site_helpers.php';
 require_once dirname(__DIR__, 2) . '/controllers/AdminAuthController.php';
 require_once dirname(__DIR__, 2) . '/controllers/ContentManagerController.php';
+require_once __DIR__ . '/helpers/whatsapp.php';
 require_once dirname(__DIR__, 2) . '/models/SchemaHelper.php';
 
 ImageUploadService::ensureStorageRoots();

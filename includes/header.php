@@ -1,8 +1,14 @@
 <?php
 /** @var string $activeNav */
 /** @var bool $showMega */
+/** @var bool $examFocusMode */
 $activeNav = $activeNav ?? '';
 $showMega = $showMega ?? true;
+$examFocusMode = $examFocusMode ?? (defined('EXAM_FOCUS_LAYOUT') && EXAM_FOCUS_LAYOUT);
+
+if ($examFocusMode) {
+    return;
+}
 $user = current_user();
 require_once __DIR__ . '/public_site_helpers.php';
 $logoPath = (new PlatformRepository())->logoPath();
