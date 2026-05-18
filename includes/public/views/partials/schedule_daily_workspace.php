@@ -1,4 +1,8 @@
 <?php
+declare(strict_types=1);
+
+require_once dirname(__DIR__, 4) . '/models/SubCourseDemoAccess.php';
+
 /**
  * Student daily schedule — multi-subject rows with progress.
  *
@@ -13,6 +17,12 @@ $pct = (int) ($scheduleDaily['progress_percent'] ?? 0);
 $day = $scheduleDaily['day'] ?? [];
 $hasAccess = !empty($scheduleDaily['has_access']);
 $enrollmentDay = (int) ($scheduleDaily['enrollment_day'] ?? 1);
+$isLoggedIn = !empty($scheduleDaily['is_logged_in']);
+$needsSubscriptionPrompt = !empty($scheduleDaily['needs_subscription_prompt']);
+$enrolHref = public_sub_course_workspace_url(
+    (string) ($courseSlug ?? ''),
+    (string) ($subSlug ?? '')
+) . '#enrol';
 ?>
 <section class="schedule-daily-workspace mb-10 font-telugu" aria-label="Daily schedule">
   <div class="bg-white border border-[#E3E6F0] rounded-2xl p-5 sm:p-6 shadow-sm">
@@ -33,8 +43,22 @@ $enrollmentDay = (int) ($scheduleDaily['enrollment_day'] ?? 1);
     </div>
     <p class="text-xs text-slate-500 mb-5"><?= e((string) ($scheduleDaily['progress_label_te'] ?? '')) ?></p>
 
-    <?php if (!$hasAccess): ?>
-    <p class="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3">
+    <?php if (!$hasAccess && !$isLoggedIn): ?>
+    <p class="text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 font-telugu">
+      షెడ్యూల్ పరీక్షల కోసం <a href="<?= e(base_url('login.php')) ?>" class="text-[#4F46E5] font-semibold underline">లాగిన్</a> చేయండి.
+    </p>
+    <?php elseif ($needsSubscriptionPrompt): ?>
+    <div class="text-sm text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-4 py-4 font-telugu space-y-3">
+      <p class="flex flex-wrap items-center gap-2">
+        <span class="text-lg" aria-hidden="true">🔒</span>
+        <span>రోజు <?= (int) SubCourseDemoAccess::FREE_SCHEDULE_DAY_INDEX + 1 ?> నుండి పూర్తి కంటెంట్ కోసం సబ్‌స్క్రిప్షన్ అవసరం.</span>
+      </p>
+      <a href="<?= e($enrolHref) ?>" class="inline-flex items-center px-4 py-2.5 rounded-lg bg-[#4F46E5] text-white text-sm font-semibold hover:bg-indigo-700 transition">
+        ప్లాన్ & చెల్లింపు →
+      </a>
+    </div>
+    <?php elseif (!$hasAccess): ?>
+    <p class="text-sm text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-4 py-3 font-telugu">
       సబ్-కోర్స్ ప్లాన్ తర్వాత పరీక్షలు అన్‌లాక్ అవుతాయి.
     </p>
     <?php else: ?>

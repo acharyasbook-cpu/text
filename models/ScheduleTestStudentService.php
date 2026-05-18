@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/models/SubCourseDemoAccess.php';
+
 /**
  * Student-facing daily schedule workspace (multi-subject rows per day).
  */
@@ -29,9 +31,17 @@ final class ScheduleTestStudentService
             return null;
         }
 
+        if ($userId !== null && $userId > 0 && $subCourseId > 0
+            && !$this->subscriptions->userHasActivePlanForSubCourse($userId, $subCourseId)) {
+            SubCourseDemoAccess::ensureDemoStart($userId, $subCourseId);
+        }
         $matrix = $this->legacy->buildSubCourseMatrixView($subCourseId, $userId, $courseSlug);
         $enrollmentDay = $dayIndexOverride ?? (int) ($matrix['enrollment_day'] ?? 1);
-        $hasAccess = !empty($matrix['programme_access']);
+        $paid = $userId !== null && $userId > 0
+            && $this->subscriptions->userHasActivePlanForSubCourse($userId, $subCourseId);
+        $scheduleDayIx = (int) ($day['day_index'] ?? $enrollmentDay);
+        $hasAccess = $userId !== null && $userId > 0
+            && ($paid || SubCourseDemoAccess::canAccessProgrammeDay($userId, $subCourseId, $scheduleDayIx));
 
         $day = $this->repo->dayByIndex($subCourseId, $termKey, $enrollmentDay);
         if (!$day) {
@@ -79,6 +89,9 @@ final class ScheduleTestStudentService
         return [
             'has_access' => $hasAccess,
             'enrollment_day' => $enrollmentDay,
+            'is_logged_in' => $userId !== null && $userId > 0,
+            'needs_subscription_prompt' => $userId !== null && $userId > 0 && !$hasAccess
+                && $scheduleDayIx > SubCourseDemoAccess::FREE_SCHEDULE_DAY_INDEX,
             'term_key' => $termKey,
             'day' => $day,
             'rows' => $enriched,

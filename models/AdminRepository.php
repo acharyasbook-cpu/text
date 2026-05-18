@@ -780,10 +780,15 @@ class AdminRepository
             return [];
         }
         $tbl = SchemaHelper::topicsTable();
-        $st = db()->prepare("SELECT id, title, slug FROM `{$tbl}` WHERE subject_id=? ORDER BY sort_order, id");
+        $hasCustom = SchemaHelper::columnExists($tbl, 'is_custom');
+        $customCols = $hasCustom ? ', is_custom, created_by_admin' : '';
+        $order = $hasCustom ? 'is_custom DESC, sort_order, id' : 'sort_order, id';
+        $st = db()->prepare(
+            "SELECT id, title, slug{$customCols} FROM `{$tbl}` WHERE subject_id=? ORDER BY {$order}"
+        );
         $st->execute([$subjectId]);
 
-        return $st->fetchAll();
+        return $st->fetchAll() ?: [];
     }
 
     /**

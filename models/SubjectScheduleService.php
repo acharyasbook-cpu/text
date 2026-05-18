@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/models/SubCourseDemoAccess.php';
+
 /**
  * 250-day sequential exam release tied to sub-course enrolment purchased_at.
  */
@@ -26,18 +28,23 @@ final class SubjectScheduleService
     {
         $globals = $this->matrix->globalDefaults();
         $scheduleDays = max(1, (int) ($globals['schedule_days'] ?? SubjectTermMatrixRepository::DEFAULT_SCHEDULE_DAYS));
-        $programmeAccess = $userId !== null && $userId > 0 && $subCourseId > 0
+        $paid = $userId !== null && $userId > 0 && $subCourseId > 0
             && $this->subscriptions->userHasActivePlanForSubCourse($userId, $subCourseId);
-
+        if ($userId !== null && $userId > 0 && $subCourseId > 0 && !$paid) {
+            SubCourseDemoAccess::ensureDemoStart($userId, $subCourseId);
+        }
+        $anchor = ($userId !== null && $userId > 0 && $subCourseId > 0)
+            ? SubCourseDemoAccess::scheduleAnchor($userId, $subCourseId)
+            : null;
         $enrollmentDay = 1;
         $startedAt = null;
-        if ($programmeAccess) {
-            $anchor = $this->subscriptions->enrollmentAnchorForSubCourse($userId, $subCourseId);
-            if ($anchor !== null) {
-                $startedAt = $anchor;
-                $enrollmentDay = $this->computeEnrollmentDay($anchor, $scheduleDays);
-            }
+        if ($anchor !== null) {
+            $startedAt = $anchor;
+            $enrollmentDay = $this->computeEnrollmentDay($anchor, $scheduleDays);
         }
+        $programmeAccess = $paid;
+        $slotAccess = $paid || ($userId !== null && $userId > 0 && $subCourseId > 0
+            && SubCourseDemoAccess::canAccessProgrammeDay($userId, $subCourseId, $enrollmentDay));
 
         $boxes = [];
         foreach ($this->matrix->boxesForSubCourse($subCourseId) as $box) {
@@ -50,7 +57,7 @@ final class SubjectScheduleService
 
             $todaySlot = null;
             $todayHref = null;
-            if ($programmeAccess && $enrollmentDay <= $termDays) {
+            if ($slotAccess && $enrollmentDay <= $termDays) {
                 $slot = $this->matrix->subCourseScheduleSlot($subCourseId, $termKey, $enrollmentDay);
                 if ($slot) {
                     $todaySlot = $slot;
@@ -69,8 +76,8 @@ final class SubjectScheduleService
                 'schedule_days' => $termDays,
                 'today_slot' => $todaySlot,
                 'today_exam_href' => $todayHref,
-                'can_take_today' => $programmeAccess && $todaySlot !== null && $todayHref !== null,
-                'locked' => !$programmeAccess,
+                'can_take_today' => $slotAccess && $todaySlot !== null && $todayHref !== null,
+                'locked' => !$slotAccess,
             ];
         }
 
@@ -106,18 +113,23 @@ final class SubjectScheduleService
     {
         $globals = $this->matrix->globalDefaults();
         $scheduleDays = max(1, (int) ($globals['schedule_days'] ?? SubjectTermMatrixRepository::DEFAULT_SCHEDULE_DAYS));
-        $programmeAccess = $userId !== null && $userId > 0 && $subCourseId > 0
+        $paid = $userId !== null && $userId > 0 && $subCourseId > 0
             && $this->subscriptions->userHasActivePlanForSubCourse($userId, $subCourseId);
-
+        if ($userId !== null && $userId > 0 && $subCourseId > 0 && !$paid) {
+            SubCourseDemoAccess::ensureDemoStart($userId, $subCourseId);
+        }
+        $anchor = ($userId !== null && $userId > 0 && $subCourseId > 0)
+            ? SubCourseDemoAccess::scheduleAnchor($userId, $subCourseId)
+            : null;
         $enrollmentDay = 1;
         $startedAt = null;
-        if ($programmeAccess) {
-            $anchor = $this->subscriptions->enrollmentAnchorForSubCourse($userId, $subCourseId);
-            if ($anchor !== null) {
-                $startedAt = $anchor;
-                $enrollmentDay = $this->computeEnrollmentDay($anchor, $scheduleDays);
-            }
+        if ($anchor !== null) {
+            $startedAt = $anchor;
+            $enrollmentDay = $this->computeEnrollmentDay($anchor, $scheduleDays);
         }
+        $programmeAccess = $paid;
+        $slotAccess = $paid || ($userId !== null && $userId > 0 && $subCourseId > 0
+            && SubCourseDemoAccess::canAccessProgrammeDay($userId, $subCourseId, $enrollmentDay));
 
         $boxes = [];
         foreach ($this->matrix->boxesForSubject($subjectId) as $box) {
@@ -130,7 +142,7 @@ final class SubjectScheduleService
 
             $todaySlot = null;
             $todayHref = null;
-            if ($programmeAccess && $enrollmentDay <= $termDays) {
+            if ($slotAccess && $enrollmentDay <= $termDays) {
                 $slot = $this->matrix->scheduleSlot($subjectId, $termKey, $enrollmentDay);
                 if ($slot) {
                     $todaySlot = $slot;
@@ -149,8 +161,8 @@ final class SubjectScheduleService
                 'schedule_days' => $termDays,
                 'today_slot' => $todaySlot,
                 'today_exam_href' => $todayHref,
-                'can_take_today' => $programmeAccess && $todaySlot !== null && $todayHref !== null,
-                'locked' => !$programmeAccess,
+                'can_take_today' => $slotAccess && $todaySlot !== null && $todayHref !== null,
+                'locked' => !$slotAccess,
             ];
         }
 

@@ -21,6 +21,7 @@ if (!is_array($data)) {
 }
 
 $planId = (int) ($data['plan_id'] ?? 0);
+$couponCode = trim((string) ($data['coupon_code'] ?? ''));
 $subRepo = new SubscriptionRepository();
 $plan = $subRepo->findPlanById($planId);
 if (!$plan) {
@@ -34,7 +35,15 @@ if ($subRepo->userHasActivePlanForSubCourse((int) $user['id'], (int) $plan['sub_
     exit;
 }
 
-$result = RazorpayCheckout::createOrderForPlan($plan, (int) $user['id']);
+$chargeInr = null;
+if ($couponCode !== '' && CouponRepository::tableReady()) {
+    $v = (new CouponRepository())->validateForPlan($planId, $couponCode);
+    if ($v['ok']) {
+        $chargeInr = (float) ($v['final_inr'] ?? 0);
+    }
+}
+
+$result = RazorpayCheckout::createOrderForPlan($plan, (int) $user['id'], $chargeInr);
 if (!$result['ok']) {
     echo json_encode($result);
     exit;

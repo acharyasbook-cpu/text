@@ -178,24 +178,30 @@ final class FreemiumAccess
         }
     }
 
-    public static function assertTestAccess(array $user, array $test, array $subject): void
+    public static function assertTestAccess(array $user, array $test, array $subject, ?int $scheduleRowId = null): void
     {
         $subRepo = new SubscriptionRepository();
-        if (!empty($test['package_id']) && !$subRepo->userHasTestAccess((int) $user['id'], (int) $test['id'])) {
+        $uid = (int) $user['id'];
+        $testId = (int) $test['id'];
+        $schedId = ($scheduleRowId !== null && $scheduleRowId > 0) ? $scheduleRowId : null;
+
+        if (!empty($test['package_id']) && !$subRepo->userMayAccessScheduledTest($uid, $testId, $schedId)) {
             flash('error', 'You need an active package to access this test.');
             redirect('exams.php');
         }
 
-        $topic = self::resolveTopicForTest((int) $test['id']);
+        $topic = self::resolveTopicForTest($testId);
         $courseRepo = new CourseRepository();
         $topics = $topic
             ? $courseRepo->topicsForSubject((int) $topic['subject_id'])
             : [];
         $ranks = self::topicRanksBySort($topics);
         $rank = $topic ? self::rankForTopic($ranks, (int) $topic['id']) : 99;
-        $paid = self::programmeAccessForSubject($subject, (int) $user['id']);
+        $paid = self::programmeAccessForSubject($subject, $uid);
+        $scheduleWindow = $schedId !== null && $subRepo->userMayAccessScheduledTest($uid, $testId, $schedId);
+        $programmeHasAccess = $paid || $scheduleWindow;
 
-        if (!self::canAccessTest((int) $user['id'], $test, $paid, $topic, $rank)) {
+        if (!self::canAccessTest($uid, $test, $programmeHasAccess, $topic, $rank)) {
             flash('error', 'ఈ టెస్ట్ యాక్సెస్ కోసం సబ్-కోర్స్ ప్లాన్ అవసరం.');
             $return = trim((string) ($_GET['return'] ?? ''));
             if ($return !== '' && !preg_match('#^https?://#i', $return)) {

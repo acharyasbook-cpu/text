@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/models/SchemaHelper.php';
+require_once dirname(__DIR__) . '/models/CouponRepository.php';
 
 class SubscriptionRepository
 {
@@ -97,6 +98,39 @@ class SubscriptionRepository
         return (bool) $stmt->fetch();
     }
 
+    /**
+     * Package / subscription OR 2-day demo window for schedule-linked exams.
+     */
+    public function userMayAccessScheduledTest(int $userId, int $testId, ?int $scheduleRowId): bool
+    {
+        if ($userId < 1) {
+            return false;
+        }
+        if ($this->userHasTestAccess($userId, $testId)) {
+            return true;
+        }
+        if ($scheduleRowId === null || $scheduleRowId < 1 || !SchemaHelper::scheduleTestManagerEnabled()) {
+            return false;
+        }
+        require_once dirname(__DIR__) . '/models/ScheduleTestRepository.php';
+        require_once dirname(__DIR__) . '/models/SubCourseDemoAccess.php';
+        $gate = (new ScheduleTestRepository())->rowScheduleGate($scheduleRowId);
+        if (!$gate || (int) $gate['sub_course_id'] < 1) {
+            return false;
+        }
+        $scId = (int) $gate['sub_course_id'];
+        $dayIx = (int) ($gate['day_index'] ?? 0);
+        if ($dayIx < 1) {
+            return false;
+        }
+        // First two sequential schedule days (day_index 1–2): free for every logged-in user.
+        if ($dayIx <= SubCourseDemoAccess::FREE_SCHEDULE_DAY_INDEX) {
+            return true;
+        }
+
+        return $this->userHasActivePlanForSubCourse($userId, $scId);
+    }
+
     public function packagesForCourse(int $courseId): array
     {
         $extra = SchemaHelper::columnExists('sub_course_packages', 'status') ? ' AND status = 1' : '';
@@ -164,8 +198,11 @@ class SubscriptionRepository
         return (bool) $st->fetch();
     }
 
-    /** Complete checkout: payment row + active subscription for sub-course plan. */
-    public function purchaseSubCoursePlan(int $userId, int $planId, string $paymentMethod = 'gateway'): array
+    /** Complete checkout: payment row + active subscription for sub-course plan.
+     *
+     * @return array{payment_id:int,transaction_ref:string,plan:array,expires_at:?string,amount_inr:float}
+     */
+    public function purchaseSubCoursePlan(int $userId, int $planId, string $paymentMethod = 'gateway', ?string $couponCode = null): array
     {
         $plan = $this->findPlanById($planId);
         if (!$plan) {
@@ -175,6 +212,19 @@ class SubscriptionRepository
         $price = (float) ($plan['price_inr'] ?? 0);
         if ($price < 0) {
             throw new InvalidArgumentException('Invalid plan price.');
+        }
+
+        $couponId = null;
+        $discountInr = 0.0;
+        if ($couponCode !== null && trim($couponCode) !== '' && CouponRepository::tableReady()) {
+            $repo = new CouponRepository();
+            $v = $repo->validateForPlan($planId, $couponCode);
+            if (!$v['ok']) {
+                throw new InvalidArgumentException($v['error_te'] ?? 'Invalid coupon.');
+            }
+            $price = (float) ($v['final_inr'] ?? $price);
+            $discountInr = (float) ($v['discount_inr'] ?? 0);
+            $couponId = (int) ($v['coupon_id'] ?? 0);
         }
 
         $expiresAt = null;
@@ -189,7 +239,19 @@ class SubscriptionRepository
         $pdo->beginTransaction();
         try {
             $txnRef = 'AB-' . strtoupper(bin2hex(random_bytes(4))) . '-' . time();
-            $paymentId = $this->insertPayment($userId, $planId, $price, $paymentMethod, $txnRef);
+            $note = 'Sub-course plan enrolment via checkout';
+            if ($couponId !== null && $couponId > 0) {
+                $note .= ' | coupon_id=' . $couponId;
+            }
+            $paymentId = $this->insertPayment($userId, $planId, $price, $paymentMethod, $txnRef, $note);
+
+            if ($couponId !== null && $couponId > 0) {
+                $subCourseId = (int) ($plan['sub_course_id'] ?? 0);
+                if (CouponRepository::usageLogsReady() && $subCourseId > 0) {
+                    (new CouponRepository())->logRedemption($couponId, $userId, $subCourseId, $discountInr, $price);
+                }
+                (new CouponRepository())->incrementUsage($couponId);
+            }
 
             if (SchemaHelper::columnExists('user_subscriptions', 'sub_course_plan_id')) {
                 $subCourseId = (int) ($plan['sub_course_id'] ?? 0);
@@ -212,6 +274,7 @@ class SubscriptionRepository
                 'transaction_ref' => $txnRef,
                 'plan' => $plan,
                 'expires_at' => $expiresAt,
+                'amount_inr' => $price,
             ];
         } catch (Throwable $e) {
             $pdo->rollBack();
@@ -235,7 +298,7 @@ class SubscriptionRepository
         }
     }
 
-    private function insertPayment(int $userId, int $planId, float $amount, string $method, string $txnRef): int
+    private function insertPayment(int $userId, int $planId, float $amount, string $method, string $txnRef, string $notes = 'Sub-course plan enrolment via checkout'): int
     {
         if (!SchemaHelper::hasTable('payments')) {
             return 0;
@@ -253,7 +316,7 @@ class SubscriptionRepository
                 $amount,
                 $method,
                 $txnRef,
-                'Sub-course plan enrolment via checkout',
+                $notes,
             ]);
         } else {
             $st = db()->prepare(
@@ -265,7 +328,7 @@ class SubscriptionRepository
                 $amount,
                 $method,
                 $txnRef,
-                'Sub-course plan #' . $planId,
+                $notes,
             ]);
         }
 

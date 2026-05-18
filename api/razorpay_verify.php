@@ -25,6 +25,7 @@ $orderId = trim((string) ($data['razorpay_order_id'] ?? ''));
 $paymentId = trim((string) ($data['razorpay_payment_id'] ?? ''));
 $signature = trim((string) ($data['razorpay_signature'] ?? ''));
 $return = safe_return_path($data['return'] ?? '');
+$couponCode = trim((string) ($data['coupon_code'] ?? ''));
 
 if (!RazorpayCheckout::verifyPaymentSignature($orderId, $paymentId, $signature)) {
     http_response_code(400);
@@ -34,7 +35,12 @@ if (!RazorpayCheckout::verifyPaymentSignature($orderId, $paymentId, $signature))
 
 $subRepo = new SubscriptionRepository();
 try {
-    $result = $subRepo->purchaseSubCoursePlan((int) $user['id'], $planId, 'razorpay:' . $paymentId);
+    $result = $subRepo->purchaseSubCoursePlan(
+        (int) $user['id'],
+        $planId,
+        'razorpay:' . $paymentId,
+        $couponCode !== '' ? $couponCode : null
+    );
 } catch (Throwable $e) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => $e->getMessage()]);

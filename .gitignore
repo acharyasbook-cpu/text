@@ -2,5 +2,10 @@ config/database.local.php
 database/*.sqlite
 storage/sessions/*
 !storage/sessions/.gitkeep
+storage/mcq_pdfs/*
+!storage/mcq_pdfs/.gitkeep
+storage/cm_page.html
+storage/test_cookies.txt
+storage/test_cover.png
 uploads/*
 !uploads/.gitkeep

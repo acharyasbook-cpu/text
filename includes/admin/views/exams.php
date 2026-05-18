@@ -54,6 +54,9 @@ require ACHARYA_ROOT . '/includes/admin/partials/page_header.php';
           <p class="text-xs text-slate-500 mt-0.5">టైప్ · టైమర్ · ప్రశ్నలు — ఇన్‌లైన్ నియంత్రణలు</p>
         </div>
         <span class="admin-badge"><?= count($tests) ?> exams</span>
+        <button type="button" id="exam-poster-trigger" class="text-xs text-slate-500 hover:text-brand font-telugu underline decoration-dotted underline-offset-2 shrink-0">
+          Generate Top-3 Leaderboard Poster
+        </button>
       </div>
       <div class="overflow-x-auto">
         <table class="admin-table w-full text-sm" id="exam-records-table">
@@ -262,6 +265,27 @@ require ACHARYA_ROOT . '/includes/admin/partials/page_header.php';
         <button type="button" class="admin-btn admin-btn--ghost text-sm" data-close-modal>✕ మూసివేయి</button>
       </div>
       <div id="eqm-body" class="overflow-y-auto p-4 space-y-4 flex-1"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Optional leaderboard poster (admin-triggered only) -->
+<div id="exam-poster-modal" class="fixed inset-0 z-[85] hidden" aria-hidden="true">
+  <div class="absolute inset-0 bg-slate-900/50" data-poster-close></div>
+  <div class="absolute inset-4 flex items-center justify-center pointer-events-none overflow-y-auto">
+    <div class="admin-card max-w-lg w-full pointer-events-auto p-5 shadow-2xl my-8">
+      <div class="flex justify-between items-start gap-3 mb-4">
+        <h3 class="font-telugu font-bold text-slate-900">టాప్-3 లీడర్‌బోర్డు పోస్టర్</h3>
+        <button type="button" class="text-slate-500 hover:text-slate-800 text-xl leading-none" data-poster-close aria-label="Close">&times;</button>
+      </div>
+      <label class="text-xs text-slate-600 font-telugu block mb-1">పరీక్ష ఎంచుకోండి</label>
+      <select id="exam-poster-test" class="admin-input w-full mb-3 text-sm"></select>
+      <button type="button" id="exam-poster-gen" class="admin-btn admin-btn-primary text-sm mb-4 font-telugu">రేండర్ చేయి</button>
+      <div id="exam-poster-canvas-wrap" class="hidden">
+        <canvas id="exam-poster-canvas" width="900" height="900" class="w-full max-h-[55vh] object-contain border border-slate-200 rounded-xl bg-slate-50"></canvas>
+        <p class="text-xs text-slate-500 mt-2 font-telugu">షేర్ చేయడానికి స్క్రీన్‌షాట్ తీసుకోండి లేదా బ్రౌజర్‌లో చిత్రం గా సేవ్ చేయండి.</p>
+      </div>
+      <p id="exam-poster-err" class="text-sm text-red-600 hidden"></p>
     </div>
   </div>
 </div>
@@ -587,6 +611,108 @@ require ACHARYA_ROOT . '/includes/admin/partials/page_header.php';
       });
     });
     return wrap;
+  }
+
+  /* Optional leaderboard poster (manual admin trigger) */
+  var posterModal = document.getElementById('exam-poster-modal');
+  var posterSel = document.getElementById('exam-poster-test');
+  var posterBtn = document.getElementById('exam-poster-trigger');
+  var posterGen = document.getElementById('exam-poster-gen');
+  var posterWrap = document.getElementById('exam-poster-canvas-wrap');
+  var posterErr = document.getElementById('exam-poster-err');
+  var posterCv = document.getElementById('exam-poster-canvas');
+
+  function fillPosterTests() {
+    if (!posterSel) return;
+    posterSel.innerHTML = '';
+    document.querySelectorAll('#exam-records-table tbody tr[data-test-id]').forEach(function (tr) {
+      var id = tr.getAttribute('data-test-id');
+      var titleEl = tr.querySelector('td .font-medium');
+      var opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = (titleEl && titleEl.textContent) ? titleEl.textContent.trim() : ('Test ' + id);
+      posterSel.appendChild(opt);
+    });
+  }
+
+  function closePosterModal() {
+    if (posterModal) posterModal.classList.add('hidden');
+  }
+
+  function drawLeaderboardPoster(meta, top) {
+    if (!posterCv || !posterCv.getContext) return;
+    var ctx = posterCv.getContext('2d');
+    var w = posterCv.width, h = posterCv.height;
+    var grd = ctx.createLinearGradient(0, 0, w, h);
+    grd.addColorStop(0, '#0f172a');
+    grd.addColorStop(1, '#4338ca');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, w, h);
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#e0e7ff';
+    ctx.font = '600 28px system-ui, sans-serif';
+    ctx.fillText('Acharya Books — Top 3', w / 2, 56);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '22px system-ui, sans-serif';
+    ctx.fillText(meta.course_name || '', w / 2, 96);
+    ctx.font = '600 20px system-ui, sans-serif';
+    ctx.fillText(String(meta.title || '').slice(0, 88), w / 2, 132);
+    var medals = ['1st', '2nd', '3rd'];
+    var y0 = 200;
+    if (!top || !top.length) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '18px system-ui, sans-serif';
+      ctx.fillText('No submitted attempts yet.', w / 2, h / 2);
+    } else {
+      top.forEach(function (r, i) {
+        var y = y0 + i * 150;
+        ctx.fillStyle = '#fde68a';
+        ctx.font = 'bold 24px system-ui, sans-serif';
+        ctx.fillText(medals[i] || String(i + 1), w / 2, y);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 26px system-ui, sans-serif';
+        ctx.fillText(r.name || '', w / 2, y + 38);
+        ctx.fillStyle = '#c7d2fe';
+        ctx.font = '18px system-ui, sans-serif';
+        ctx.fillText('Best: ' + (r.best_pct != null ? r.best_pct : 0) + '% — ' + (r.best_score || 0) + ' / ' + (r.best_max || 0), w / 2, y + 72);
+      });
+    }
+    if (posterWrap) posterWrap.classList.remove('hidden');
+  }
+
+  if (posterBtn && posterModal) {
+    posterBtn.addEventListener('click', function () {
+      fillPosterTests();
+      if (posterErr) posterErr.classList.add('hidden');
+      if (posterWrap) posterWrap.classList.add('hidden');
+      posterModal.classList.remove('hidden');
+    });
+    posterModal.querySelectorAll('[data-poster-close]').forEach(function (el) {
+      el.addEventListener('click', closePosterModal);
+    });
+  }
+  if (posterGen && posterSel) {
+    posterGen.addEventListener('click', function () {
+      var tid = parseInt(posterSel.value, 10);
+      if (posterErr) posterErr.classList.add('hidden');
+      if (!tid) {
+        if (posterErr) {
+          posterErr.textContent = 'పరీక్ష ఎంచుకోండి';
+          posterErr.classList.remove('hidden');
+        }
+        return;
+      }
+      getJson('leaderboard_top', { test_id: tid }).then(function (d) {
+        if (!d.ok) {
+          if (posterErr) {
+            posterErr.textContent = d.error || 'లోపం';
+            posterErr.classList.remove('hidden');
+          }
+          return;
+        }
+        drawLeaderboardPoster(d.test || {}, d.top || []);
+      });
+    });
   }
 })();
 </script>

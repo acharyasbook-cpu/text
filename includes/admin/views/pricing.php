@@ -50,6 +50,8 @@ require __DIR__ . '/../partials/page_header.php';
       <p id="pricingSaveMsg" class="text-xs text-slate-600 min-h-[1rem] font-telugu"></p>
     </div>
   </section>
+
+  <?php require __DIR__ . '/../partials/coupon_admin_panel.php'; ?>
 </div>
 
 <script>

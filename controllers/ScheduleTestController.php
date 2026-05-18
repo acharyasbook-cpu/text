@@ -30,13 +30,18 @@ final class ScheduleTestController
                 'save_config' => $this->saveConfig($data),
                 'calendar' => $this->calendar($data),
                 'day' => $this->day($data),
+                'dual_day' => $this->dualDay($data),
                 'save_day' => $this->saveDay($data),
+                'batch_save_dispatch' => $this->batchSaveDispatch($data),
                 'delete_day' => $this->deleteDay($data),
                 'copy_layout' => $this->copyLayout($data),
                 'topics' => $this->topics($data),
+                'create_custom_topic' => $this->createCustomTopic($data),
                 'pool_mcqs' => $this->poolMcqs($data),
                 'ai_pool' => $this->aiPool($data),
                 'whatsapp' => $this->whatsapp($data),
+                'compile_notification' => $this->compileNotification($data),
+                'dispatch_whatsapp' => $this->dispatchWhatsapp($data),
                 'dual_tracker' => $this->dualTracker($data),
                 'day_preview' => $this->dayPreview($data),
                 'toggle_lock' => $this->toggleLock($data),
@@ -187,6 +192,112 @@ final class ScheduleTestController
     {
         $subjectId = (int) ($data['subject_id'] ?? $_GET['subject_id'] ?? 0);
         echo json_encode(['ok' => true, 'topics' => $this->repo->topicsForSubject($subjectId)], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function createCustomTopic(array $data): void
+    {
+        AdminAuthController::verifyCsrf((string) ($data['_csrf'] ?? ''));
+        $subjectId = (int) ($data['subject_id'] ?? 0);
+        $title = trim((string) ($data['title'] ?? ''));
+        if ($subjectId < 1 || $title === '') {
+            throw new InvalidArgumentException('subject_id and title required');
+        }
+        $adminId = (int) ($_SESSION['admin']['id'] ?? 0);
+        $topicId = $this->repo->createCustomTopic($subjectId, $title, $adminId > 0 ? $adminId : null);
+        echo json_encode([
+            'ok' => true,
+            'topic_id' => $topicId,
+            'topics' => $this->repo->topicsForSubject($subjectId),
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function dualDay(array $data): void
+    {
+        $subCourseId = (int) ($data['sub_course_id'] ?? $_GET['sub_course_id'] ?? 0);
+        $dayIndex = isset($data['day_index']) ? (int) $data['day_index'] : (isset($_GET['day_index']) ? (int) $_GET['day_index'] : null);
+        $scheduleDate = !empty($data['schedule_date']) ? (string) $data['schedule_date'] : (!empty($_GET['schedule_date']) ? (string) $_GET['schedule_date'] : null);
+        if ($subCourseId < 1) {
+            throw new InvalidArgumentException('sub_course_id required');
+        }
+        echo json_encode([
+            'ok' => true,
+            'workspace' => $this->repo->dualDayWorkspace($subCourseId, $dayIndex > 0 ? $dayIndex : null, $scheduleDate),
+        ], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function batchSaveDispatch(array $data): void
+    {
+        AdminAuthController::verifyCsrf((string) ($data['_csrf'] ?? ''));
+        $result = $this->repo->batchSaveDualTermDispatch($data);
+        echo json_encode(['ok' => true] + $result, JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function compileNotification(array $data): void
+    {
+        $subCourseId = (int) ($data['sub_course_id'] ?? $_GET['sub_course_id'] ?? 0);
+        $dayIndex = isset($data['day_index']) ? (int) $data['day_index'] : (isset($_GET['day_index']) ? (int) $_GET['day_index'] : null);
+        $scheduleDate = !empty($data['schedule_date']) ? (string) $data['schedule_date'] : (!empty($_GET['schedule_date']) ? (string) $_GET['schedule_date'] : null);
+        if ($subCourseId < 1) {
+            throw new InvalidArgumentException('sub_course_id required');
+        }
+        $compiler = new ScheduleDailyNotificationService($this->repo);
+        $compiled = $compiler->compileDailyNotification(
+            $subCourseId,
+            $dayIndex > 0 ? $dayIndex : null,
+            $scheduleDate
+        );
+        echo json_encode(['ok' => true, 'notification' => $compiled], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function dispatchWhatsapp(array $data): void
+    {
+        AdminAuthController::verifyCsrf((string) ($data['_csrf'] ?? ''));
+        $subCourseId = (int) ($data['sub_course_id'] ?? 0);
+        if ($subCourseId < 1) {
+            throw new InvalidArgumentException('sub_course_id required');
+        }
+        $dayIndex = isset($data['day_index']) && $data['day_index'] !== ''
+            ? (int) $data['day_index'] : null;
+        $scheduleDate = !empty($data['schedule_date']) ? (string) $data['schedule_date'] : null;
+
+        if (!empty($data['hold_short'])) {
+            $shortId = (int) ($data['short_day_id'] ?? 0);
+            if ($shortId < 1 && $dayIndex) {
+                $day = $this->repo->dayByIndex($subCourseId, ScheduleTestRepository::TERM_SHORT, $dayIndex);
+                $shortId = $day ? (int) $day['id'] : 0;
+            }
+            if ($shortId > 0) {
+                $this->repo->setDayStudentLock($shortId, true);
+            }
+        }
+        if (!empty($data['hold_long'])) {
+            $longId = (int) ($data['long_day_id'] ?? 0);
+            if ($longId < 1 && $dayIndex) {
+                $day = $this->repo->dayByIndex($subCourseId, ScheduleTestRepository::TERM_LONG, $dayIndex);
+                $longId = $day ? (int) $day['id'] : 0;
+            }
+            if ($longId > 0) {
+                $this->repo->setDayStudentLock($longId, true);
+            }
+        }
+
+        $compiler = new ScheduleDailyNotificationService($this->repo);
+        $compiled = $compiler->compileDailyNotification(
+            $subCourseId,
+            $dayIndex > 0 ? $dayIndex : null,
+            $scheduleDate
+        );
+        $whatsapp = $this->repo->dispatchCompiledNotification($subCourseId, $compiled['text']);
+        echo json_encode([
+            'ok' => true,
+            'notification' => $compiled,
+            'whatsapp' => $whatsapp,
+        ], JSON_UNESCAPED_UNICODE);
     }
 
     /** @param array<string,mixed> $data */

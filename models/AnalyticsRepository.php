@@ -42,6 +42,7 @@ final class AnalyticsRepository
 
         $revenue = $this->revenueByPlan($from, $to);
         $popularity = $this->coursePopularityRanking($from, $to);
+        $subCourseMetrics = $this->subCourseMetricsDashboard($from, $to);
 
         return [
             'total_students' => $totalStudents,
@@ -51,7 +52,182 @@ final class AnalyticsRepository
             'revenue_total_inr' => $revenue['total_inr'],
             'revenue_by_plan' => $revenue['by_plan'],
             'course_popularity' => $popularity,
+            'sub_course_metrics' => $subCourseMetrics,
         ];
+    }
+
+    /**
+     * Per sub-course: registrations (demo + plan purchases in range), plan mix, practice active vs idle, revenue.
+     *
+     * @return list<array<string,mixed>>
+     */
+    public function subCourseMetricsDashboard(?string $from, ?string $to): array
+    {
+        if (!SchemaHelper::hasTable('sub_courses')) {
+            return [];
+        }
+
+        $hasDemo = SchemaHelper::hasTable('user_sub_course_demo');
+        $hasPlans = SchemaHelper::hasTable('sub_course_plans')
+            && SchemaHelper::columnExists('user_subscriptions', 'sub_course_plan_id');
+        $hasScSubjects = SchemaHelper::hasTable('sub_course_subjects');
+        $payDateCol = SchemaHelper::hasTable('payments')
+            ? (SchemaHelper::columnExists('payments', 'paid_at') ? 'pay.paid_at' : 'pay.created_at')
+            : null;
+        $hasPayPlan = SchemaHelper::hasTable('payments')
+            && SchemaHelper::columnExists('payments', 'sub_course_plan_id')
+            && SchemaHelper::hasTable('sub_course_plans');
+
+        [$demoWhere, $demoParams] = $this->sqlDateRangePredicates('d.started_at', $from, $to);
+        [$subWhere, $subParams] = $this->sqlDateRangePredicates('us.purchased_at', $from, $to);
+        [$attWhere, $attParams] = $this->sqlDateRangePredicates('ta.submitted_at', $from, $to);
+        [$payWhere, $payParams] = $payDateCol !== null
+            ? $this->sqlDateRangePredicates($payDateCol, $from, $to)
+            : ['1', []];
+
+        $regBySc = [];
+        if ($hasDemo || $hasPlans) {
+            $parts = [];
+            $params = [];
+            if ($hasDemo) {
+                $parts[] = "SELECT d.sub_course_id AS sc_id, d.user_id AS user_id FROM user_sub_course_demo d WHERE {$demoWhere}";
+                $params = array_merge($params, $demoParams);
+            }
+            if ($hasPlans) {
+                $parts[] = "SELECT sp.sub_course_id AS sc_id, us.user_id AS user_id
+                    FROM user_subscriptions us
+                    INNER JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id
+                    WHERE {$subWhere}";
+                $params = array_merge($params, $subParams);
+            }
+            $union = implode(' UNION ', $parts);
+            $sql = "SELECT sc_id, COUNT(DISTINCT user_id) AS n FROM ({$union}) reg GROUP BY sc_id";
+            $st = db()->prepare($sql);
+            $st->execute($params);
+            foreach ($st->fetchAll() ?: [] as $r) {
+                $regBySc[(int) $r['sc_id']] = (int) $r['n'];
+            }
+        }
+
+        $planBySc = [];
+        if ($hasPlans) {
+            $st = db()->prepare(
+                "SELECT sp.sub_course_id AS sc_id, sp.plan_code AS plan_code, COUNT(*) AS n
+                 FROM user_subscriptions us
+                 INNER JOIN sub_course_plans sp ON sp.id = us.sub_course_plan_id
+                 WHERE {$subWhere}
+                 GROUP BY sp.sub_course_id, sp.plan_code"
+            );
+            $st->execute($subParams);
+            foreach ($st->fetchAll() ?: [] as $r) {
+                $sid = (int) $r['sc_id'];
+                if (!isset($planBySc[$sid])) {
+                    $planBySc[$sid] = ['6_months' => 0, '1_year' => 0, 'until_exam' => 0, 'other' => 0];
+                }
+                $code = (string) ($r['plan_code'] ?? '');
+                $bucket = in_array($code, ['6_months', '1_year', 'until_exam'], true) ? $code : 'other';
+                $planBySc[$sid][$bucket] += (int) $r['n'];
+            }
+        }
+
+        $activeBySc = [];
+        if ($hasScSubjects) {
+            $st = db()->prepare(
+                "SELECT scs.sub_course_id AS sc_id, COUNT(DISTINCT ta.user_id) AS n
+                 FROM test_attempts ta
+                 INNER JOIN tests t ON t.id = ta.test_id
+                 INNER JOIN subjects s ON s.id = t.subject_id
+                 INNER JOIN sub_course_subjects scs ON scs.subject_id = s.id
+                 WHERE ta.status = 'submitted' AND {$attWhere}
+                 GROUP BY scs.sub_course_id"
+            );
+            $st->execute($attParams);
+            foreach ($st->fetchAll() ?: [] as $r) {
+                $activeBySc[(int) $r['sc_id']] = (int) $r['n'];
+            }
+        }
+
+        $revBySc = [];
+        if ($hasPayPlan) {
+            $st = db()->prepare(
+                "SELECT sp.sub_course_id AS sc_id, COALESCE(SUM(pay.amount_inr), 0) AS rev
+                 FROM payments pay
+                 INNER JOIN sub_course_plans sp ON sp.id = pay.sub_course_plan_id
+                 WHERE pay.status = 'completed' AND {$payWhere}
+                 GROUP BY sp.sub_course_id"
+            );
+            $st->execute($payParams);
+            foreach ($st->fetchAll() ?: [] as $r) {
+                $revBySc[(int) $r['sc_id']] = (float) $r['rev'];
+            }
+        }
+
+        $st = db()->query(
+            'SELECT sc.id, sc.name, sc.name_te, c.name AS course_name
+             FROM sub_courses sc
+             INNER JOIN courses c ON c.id = sc.course_id
+             ORDER BY sc.name ASC'
+        );
+        $courses = $st->fetchAll() ?: [];
+
+        $rows = [];
+        foreach ($courses as $row) {
+            $id = (int) $row['id'];
+            $reg = $regBySc[$id] ?? 0;
+            $active = $activeBySc[$id] ?? 0;
+            $idle = max(0, $reg - $active);
+            $rev = $revBySc[$id] ?? 0.0;
+            $plans = $planBySc[$id] ?? ['6_months' => 0, '1_year' => 0, 'until_exam' => 0, 'other' => 0];
+            $rows[] = [
+                'sub_course_id' => $id,
+                'name' => $row['name'],
+                'name_te' => $row['name_te'],
+                'course_name' => $row['course_name'],
+                'registrations' => $reg,
+                'plan_6_months' => (int) ($plans['6_months'] ?? 0),
+                'plan_1_year' => (int) ($plans['1_year'] ?? 0),
+                'plan_until_exam' => (int) ($plans['until_exam'] ?? 0),
+                'plan_other' => (int) ($plans['other'] ?? 0),
+                'active_practice_students' => $active,
+                'idle_students' => $idle,
+                'revenue_inr' => $rev,
+                'trending_score' => $reg + $active * 2 + (int) round($rev / 500.0),
+            ];
+        }
+
+        $maxRev = 0.0;
+        foreach ($rows as $r) {
+            $maxRev = max($maxRev, (float) ($r['revenue_inr'] ?? 0));
+        }
+        foreach ($rows as &$r) {
+            $r['is_top_revenue'] = $maxRev > 0 && (float) $r['revenue_inr'] >= $maxRev - 0.001;
+        }
+        unset($r);
+
+        usort($rows, static function (array $a, array $b): int {
+            return ((int) ($b['trending_score'] ?? 0)) <=> ((int) ($a['trending_score'] ?? 0));
+        });
+
+        return $rows;
+    }
+
+    /**
+     * @return array{0:string,1:list<mixed>}
+     */
+    private function sqlDateRangePredicates(string $column, ?string $from, ?string $to): array
+    {
+        $parts = [];
+        $params = [];
+        if ($from !== null && $from !== '') {
+            $parts[] = "DATE({$column}) >= ?";
+            $params[] = $from;
+        }
+        if ($to !== null && $to !== '') {
+            $parts[] = "DATE({$column}) <= ?";
+            $params[] = $to;
+        }
+
+        return [$parts === [] ? '1' : implode(' AND ', $parts), $params];
     }
 
     /**

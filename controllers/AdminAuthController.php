@@ -129,7 +129,7 @@ final class AdminAuthController
         return $admin;
     }
 
-    private static function sessionIsValid(): bool
+    public static function sessionIsValid(): bool
     {
         $authAt = (int) ($_SESSION[self::AUTH_AT_KEY] ?? 0);
         if ($authAt < 1 || (time() - $authAt) > self::SESSION_TTL_SECONDS) {

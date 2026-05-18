@@ -2,9 +2,15 @@
 /** @var list<array<string,mixed>> $courses */
 /** @var list<array<string,mixed>> $subCourses */
 $apiUrl = admin_url('schedule_api.php');
+$waApiUrl = admin_url('whatsapp_mobile_api.php');
 $csrf = admin_csrf_token();
 ?>
-<div id="stm-root" class="font-telugu stm-dashboard" data-api="<?= admin_e($apiUrl) ?>" data-csrf="<?= admin_e($csrf) ?>">
+<div id="stm-root" class="font-telugu stm-dashboard" data-api="<?= admin_e($apiUrl) ?>" data-wa-api="<?= admin_e($waApiUrl) ?>" data-csrf="<?= admin_e($csrf) ?>">
+
+  <p class="text-xs text-slate-600 mb-4 font-telugu">
+    PDF lesson segments for question generation:
+    <a href="<?= admin_e(admin_url('mcq_generator/')) ?>" class="text-indigo-600 font-semibold hover:underline">AI MCQ Engine → PDF Segments</a>
+  </p>
 
   <!-- Permanent color legend -->
   <div class="admin-card p-4 mb-5 stm-legend-card">
@@ -128,7 +134,8 @@ $csrf = admin_csrf_token();
           <h2 class="admin-card-title text-base font-telugu" id="stm-day-title">రోజు ఎంచుకోండి</h2>
           <div class="flex flex-wrap gap-2">
             <button type="button" id="stm-copy-layout" class="admin-btn admin-btn-secondary text-xs font-telugu" disabled>మునుపటి రోజు నుండి కాపీ</button>
-            <button type="button" id="stm-save-day" class="admin-btn admin-btn--primary text-xs font-telugu" disabled>షెడ్యూల్ సేవ్</button>
+            <button type="button" id="stm-save-short" class="admin-btn admin-btn-secondary text-xs font-telugu" disabled>Save Short-Term Schedule</button>
+            <button type="button" id="stm-save-long" class="admin-btn admin-btn-secondary text-xs font-telugu" disabled>Save Long-Term Schedule</button>
           </div>
         </div>
         <div id="stm-day-meta" class="grid sm:grid-cols-2 gap-3 mb-4 hidden">
@@ -152,9 +159,14 @@ $csrf = admin_csrf_token();
             <option value="">— విషయం —</option>
           </select>
           <label class="admin-label text-xs font-telugu">టాపిక్‌లు (Topics)</label>
-          <div id="stm-composer-topics" class="stm-topic-picker border border-slate-200 rounded-lg p-2 mb-3 max-h-40 overflow-y-auto text-xs bg-white">
+          <div id="stm-composer-topics" class="stm-topic-picker border border-slate-200 rounded-lg p-2 mb-2 max-h-40 overflow-y-auto text-xs bg-white">
             <p class="text-slate-400 font-telugu">ముందుగా విషయం ఎంచుకోండి</p>
           </div>
+          <div class="flex flex-wrap gap-2 mb-3 items-end">
+            <input type="text" id="stm-custom-topic-title" class="admin-input flex-1 min-w-[10rem] text-sm" placeholder="కస్టమ్ టాపిక్ పేరు…" />
+            <button type="button" id="stm-create-topic" class="admin-btn admin-btn-secondary text-xs font-telugu shrink-0" disabled>+ Create Custom Topic</button>
+          </div>
+          <p class="text-[10px] text-slate-500 mb-2 font-telugu">జాబితాకు జోడించడం సక్రియ టర్మ్‌కు మాత్రమే (పైన ఎంచుకున్న టర్మ్)</p>
           <div class="flex flex-wrap gap-3 items-end">
             <label class="text-xs font-telugu">మార్కులు
               <input type="number" id="stm-composer-marks" class="admin-input w-20 ml-1" min="1" value="25" />
@@ -165,20 +177,24 @@ $csrf = admin_csrf_token();
           </div>
           <p id="stm-composer-msg" class="text-xs text-slate-500 mt-2 min-h-[1rem]"></p>
         </div>
-        <div id="stm-staged-list" class="space-y-2 mb-2"></div>
+        <div id="stm-active-staging-wrap" class="border border-slate-200 rounded-xl p-3 mb-2 bg-white min-h-[4rem]">
+          <p class="text-xs font-bold text-slate-700 mb-2 font-telugu" id="stm-active-term-label">—</p>
+          <div id="stm-active-staging-body" class="text-xs"></div>
+        </div>
       </div>
     </div>
 
     <div class="xl:col-span-4">
       <div class="admin-card p-4 stm-preview-panel sticky top-24" id="stm-preview-panel">
-        <h2 class="admin-card-title text-base font-telugu mb-3">త్వరిత ప్రివ్యూ (Instant Preview)</h2>
-        <div id="stm-staged-preview" class="mb-4 hidden">
-          <h3 class="text-xs font-bold text-brand mb-2 font-telugu">ఈ రోజు షెడ్యూల్ జాబితా (Staging)</h3>
-          <div id="stm-staged-preview-body"></div>
-        </div>
-        <hr id="stm-preview-divider" class="border-slate-200 my-3 hidden" />
-        <div id="stm-preview-body" class="text-sm text-slate-500 font-telugu min-h-[8rem]">
-          రోజు బ్లాక్ పై క్లిక్ చేయండి లేదా హోవర్ చేయండి — వివరాలు ఇక్కడ లోడ్ అవుతాయి.
+        <h2 class="admin-card-title text-base font-telugu mb-3">షెడ్యూల్ &amp; WhatsApp</h2>
+        <p class="text-xs text-slate-500 mb-3 font-telugu">షార్ట్ మరియు లాంగ్ టర్మ్‌లను వేర్వేరుగా సేవ్ చేయండి. రెండూ సేవ్ అయిన తర్వాత ఏకైక సందేశం పంపండి.</p>
+        <label class="stm-lock-toggle font-telugu"><input type="checkbox" id="stm-hold-short" /> 🔒 హోల్డ్ షార్ట్ (విద్యార్థులకు దాచు)</label>
+        <label class="stm-lock-toggle font-telugu"><input type="checkbox" id="stm-hold-long" /> 🔒 హోల్డ్ లాంగ్ (విద్యార్థులకు దాచు)</label>
+        <button type="button" id="stm-preview-wa" class="admin-btn admin-btn-secondary w-full text-xs mt-2 font-telugu">WhatsApp ప్రివ్యూ</button>
+        <button type="button" id="stm-wa-dispatch" class="admin-btn admin-btn-primary w-full text-xs mt-2 font-telugu">Share Combined Plan on WhatsApp</button>
+        <hr class="border-slate-200 my-3" />
+        <div id="stm-preview-body" class="text-sm text-slate-500 font-telugu min-h-[6rem]">
+          రోజు బ్లాక్ పై క్లిక్ చేయండి — షార్ట్ &amp; లాంగ్ టర్మ్ జాబితాలు ఇక్కడ.
         </div>
       </div>
     </div>
@@ -236,6 +252,32 @@ $csrf = admin_csrf_token();
   font-size: 11px; padding: .5rem .75rem; border-radius: .5rem; margin-bottom: .75rem;
 }
 .stm-lock-toggle { display: flex; align-items: center; gap: .5rem; font-size: 12px; margin: .75rem 0; }
+.stm-staging-row { border: 1px solid #e2e8f0; border-radius: .5rem; padding: .5rem; margin-bottom: .35rem; background: #fff; }
+.stm-staging-row input[type="text"], .stm-staging-row input[type="number"] { font-size: 11px; padding: .2rem .35rem; }
+#stm-hybrid-modal { position: fixed; inset: 0; z-index: 80; display: none; align-items: center; justify-content: center; background: rgba(15,23,42,.45); padding: 1rem; }
+#stm-hybrid-modal.is-open { display: flex; }
+.stm-hybrid-panel { background: #fff; border-radius: 1rem; max-width: 42rem; width: 100%; max-height: 90vh; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(15,23,42,.2); }
 </style>
 
-<script src="<?= admin_e(admin_site_url('assets/js/schedule-test-manager.js')) ?>?v=4"></script>
+<div id="stm-hybrid-modal" role="dialog" aria-modal="true" aria-labelledby="stm-hybrid-title">
+  <div class="stm-hybrid-panel font-telugu">
+    <div class="p-4 border-b border-slate-200 flex justify-between items-center">
+      <h3 id="stm-hybrid-title" class="font-bold text-slate-900 text-sm">హైబ్రిడ్ ప్రశ్న పికర్</h3>
+      <button type="button" id="stm-hybrid-close" class="text-slate-500 hover:text-slate-800 text-xl leading-none">&times;</button>
+    </div>
+    <div class="p-4 overflow-y-auto flex-1 text-xs space-y-3">
+      <input type="search" id="stm-hybrid-search" class="admin-input w-full text-sm" placeholder="ప్రశ్నలు శోధించండి…" />
+      <div id="stm-hybrid-pool" class="max-h-40 overflow-y-auto border border-slate-200 rounded-lg divide-y"></div>
+      <div>
+        <label class="admin-label text-xs">బయటి ప్రశ్నలు (paste MCQs)</label>
+        <textarea id="stm-hybrid-external" rows="5" class="admin-input w-full font-mono text-xs"></textarea>
+      </div>
+    </div>
+    <div class="p-4 border-t border-slate-200 flex gap-2 justify-end">
+      <button type="button" id="stm-hybrid-cancel" class="admin-btn admin-btn-secondary text-xs">రద్దు</button>
+      <button type="button" id="stm-hybrid-apply" class="admin-btn admin-btn-primary text-xs">వర్తింపజేయి</button>
+    </div>
+  </div>
+</div>
+
+<script src="<?= admin_e(admin_site_url('assets/js/schedule-test-manager.js')) ?>?v=6"></script>

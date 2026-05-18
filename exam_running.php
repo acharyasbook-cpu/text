@@ -25,7 +25,8 @@ if (!$test) {
     exit('Test not found');
 }
 
-if (!$subRepo->userHasTestAccess($userId, (int) $test['id'])) {
+$scheduleRowId = (int) ($_GET['schedule_row'] ?? 0);
+if (!$subRepo->userMayAccessScheduledTest($userId, (int) $test['id'], $scheduleRowId > 0 ? $scheduleRowId : null)) {
     flash('error', 'You need an active sub-course package to access this test.');
     redirect('exams.php');
 }
@@ -45,7 +46,8 @@ if (!empty($test['subject_id'])) {
     $subject = $st->fetch() ?: null;
 }
 if ($subject) {
-    FreemiumAccess::assertTestAccess($user, $test, $subject);
+    $schRow = (int) ($_GET['schedule_row'] ?? 0);
+    FreemiumAccess::assertTestAccess($user, $test, $subject, $schRow > 0 ? $schRow : null);
 }
 
 $dbQuestions = $testRepo->questionsForTest((int) $test['id']);

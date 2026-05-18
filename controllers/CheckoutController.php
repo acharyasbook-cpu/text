@@ -24,6 +24,7 @@ final class CheckoutController
         }
 
         $planId = (int) ($_POST['plan_id'] ?? 0);
+        $couponCode = trim((string) ($_POST['coupon_code'] ?? ''));
         $return = safe_return_path($_POST['return'] ?? '');
 
         $plan = $this->subscriptions->findPlanById($planId);
@@ -44,7 +45,12 @@ final class CheckoutController
         }
 
         try {
-            $result = $this->subscriptions->purchaseSubCoursePlan((int) $user['id'], $planId, 'acharya_checkout');
+            $result = $this->subscriptions->purchaseSubCoursePlan(
+                (int) $user['id'],
+                $planId,
+                'acharya_checkout',
+                $couponCode !== '' ? $couponCode : null
+            );
             flash(
                 'success',
                 'Payment successful! Reference ' . $result['transaction_ref']

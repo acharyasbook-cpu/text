@@ -124,9 +124,22 @@ function admin_programme_url(string $mainCourseSlug, string $subCourseSlug): str
     ]);
 }
 
+/** Login/logout/dashboard URLs always resolve to /admin/, not nested folders like /admin/mcq_generator/. */
+function admin_core_url(string $path): string
+{
+    $path = ltrim($path, '/');
+    if (admin_in_panel() && preg_match('#/admin/[^/]+/#', str_replace('\\', '/', $_SERVER['SCRIPT_NAME'] ?? ''))) {
+        return admin_site_url($path);
+    }
+
+    return admin_url($path);
+}
+
 function admin_redirect(string $path): never
 {
-    header('Location: ' . admin_url($path));
+    $core = [admin_login_path(), admin_logout_path(), admin_dashboard_path(), 'login.php', 'logout.php', 'dashboard.php', 'actions.php'];
+    $target = in_array($path, $core, true) ? admin_core_url($path) : admin_url($path);
+    header('Location: ' . $target);
     exit;
 }
 

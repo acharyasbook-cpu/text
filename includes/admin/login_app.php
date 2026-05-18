@@ -21,7 +21,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         AdminAuthController::establishSession($admin);
         admin_redirect(admin_dashboard_path());
     }
-    $error = 'Invalid administrator credentials.';
+    require_once ACHARYA_ROOT . '/controllers/McqAuth.php';
+    require_once ACHARYA_ROOT . '/models/ExaminerRepository.php';
+    $examiner = (new ExaminerRepository())->verifyLogin($email, $password);
+    if ($examiner) {
+        McqAuth::establishExaminerSession($examiner);
+        admin_redirect('mcq_generator/');
+    }
+    $error = 'Invalid administrator or examiner credentials.';
 }
 $adminCss = admin_site_url('assets/css/admin-premium.css');
 ?>

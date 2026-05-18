@@ -27,14 +27,19 @@ final class RazorpayCheckout
     /**
      * @return array{ok:bool,order_id?:string,amount?:int,currency?:string,key_id?:string,description?:string,error?:string,fallback?:bool}
      */
-    public static function createOrderForPlan(array $plan, int $userId): array
+    public static function createOrderForPlan(array $plan, int $userId, ?float $amountInrOverride = null): array
     {
         if (!self::isConfigured()) {
             return ['ok' => false, 'fallback' => true, 'error' => 'Razorpay not configured'];
         }
 
         $cfg = self::config();
-        $amount = (int) round((float) ($plan['price_inr'] ?? 0) * 100);
+        $base = (float) ($plan['price_inr'] ?? 0);
+        $charge = $amountInrOverride !== null ? (float) $amountInrOverride : $base;
+        if ($charge < 0) {
+            $charge = 0.0;
+        }
+        $amount = (int) round($charge * 100);
         if ($amount < 100) {
             $amount = 100;
         }

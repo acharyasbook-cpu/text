@@ -31,6 +31,21 @@ require __DIR__ . '/../partials/page_header.php';
     <div id="anPopularity" class="space-y-2 text-sm mt-3"></div>
   </section>
 
+  <section class="admin-card p-5 mb-6">
+    <div class="flex flex-wrap items-start justify-between gap-3 mb-3">
+      <div>
+        <h2 class="text-sm font-bold text-slate-900 font-telugu">సబ్-కోర్స్ & సబ్‌స్క్రిప్షన్ విశ్లేషణ</h2>
+        <p class="text-xs text-slate-500 mt-1 font-telugu">ట్రెండింగ్ · ప్లాన్ మిక్స్ · ప్రాక్టీస్ యాక్టివ్ vs ఐడిల్ · రెవెన్యూ</p>
+      </div>
+      <p class="text-[10px] text-slate-400 max-w-xs leading-relaxed font-telugu">
+        టాప్-3 లీడర్‌బోర్డు పోస్టర్ కోసం
+        <a class="text-brand hover:underline" href="<?= admin_e(admin_dashboard_url(['view' => 'exams'])) ?>">Exam Manager</a>
+        లో ఐచ్ఛిక బటన్.
+      </p>
+    </div>
+    <div id="anSubCourseMetrics" class="text-sm mt-2">లోడ్…</div>
+  </section>
+
   <section class="admin-card p-5 mb-4">
     <div class="flex flex-wrap gap-3 items-end">
       <div class="flex-1 min-w-[200px]">
@@ -145,10 +160,14 @@ require __DIR__ . '/../partials/page_header.php';
   }
 
   async function loadOverview() {
-    const res = await fetch(API + '?' + qs({ action: 'overview' }));
-    const json = await res.json();
-    if (!json.ok) return;
-    const d = json.data;
+    const smEl = $('anSubCourseMetrics');
+    const popEl = $('anPopularity');
+    try {
+      const res = await fetch(API + '?' + qs({ action: 'overview' }));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error || 'Overview failed');
+      const d = json.data;
     root.querySelectorAll('[data-k]').forEach(el => {
       const k = el.dataset.k;
       if (k === 'revenue_total_inr') el.textContent = inr(d.revenue_total_inr);
@@ -171,16 +190,58 @@ require __DIR__ . '/../partials/page_header.php';
         <div class="h-2 bg-slate-200 rounded-full mt-1 overflow-hidden"><span class="block h-full bg-indigo-600 rounded-full" style="width:${pct}%"></span></div></div>
         <span class="text-xs font-bold tabular-nums">${r.enrollments}</span></div>`;
     }).join('') : '<p class="text-slate-500 text-xs">ఇంకా డేటా లేదు</p>';
+
+    const subMetrics = d.sub_course_metrics || [];
+    if (smEl) {
+      if (!subMetrics.length) {
+        smEl.innerHTML = '<p class="text-slate-500 text-xs font-telugu">సబ్-కోర్సు డేటా లేదు</p>';
+      } else {
+        smEl.innerHTML = `<div class="overflow-x-auto"><table class="admin-table text-xs w-full min-w-[720px]">
+          <thead><tr class="bg-slate-50">
+            <th class="font-telugu text-left">సబ్-కోర్స్</th>
+            <th class="text-right font-telugu">నమోదులు</th>
+            <th class="text-right">6M</th>
+            <th class="text-right">1Y</th>
+            <th class="text-right font-telugu">పరీ.</th>
+            <th class="text-right font-telugu text-emerald-800">యాక్టివ్</th>
+            <th class="text-right font-telugu text-slate-600">ఐడిల్</th>
+            <th class="text-right font-telugu">రెవెన్యూ</th>
+          </tr></thead><tbody>` + subMetrics.map((r, i) => {
+          const trending = i < 3 ? '<span class="admin-badge admin-badge-indigo text-[9px] mr-1">Trending</span>' : '';
+          const topRev = r.is_top_revenue ? '<span class="admin-badge admin-badge-amber text-[9px] ml-1">Top ₹</span>' : '';
+          const name = r.name_te || r.name || '';
+          return `<tr>
+            <td class="font-semibold">${trending}${esc(name)}<div class="text-[10px] text-slate-500 font-normal">${esc(r.course_name || '')}</div></td>
+            <td class="text-right tabular-nums">${r.registrations ?? 0}</td>
+            <td class="text-right tabular-nums">${r.plan_6_months ?? 0}</td>
+            <td class="text-right tabular-nums">${r.plan_1_year ?? 0}</td>
+            <td class="text-right tabular-nums">${r.plan_until_exam ?? 0}</td>
+            <td class="text-right tabular-nums text-emerald-700">${r.active_practice_students ?? 0}</td>
+            <td class="text-right tabular-nums text-slate-500">${r.idle_students ?? 0}</td>
+            <td class="text-right tabular-nums whitespace-nowrap">${inr(r.revenue_inr)}${topRev}</td>
+          </tr>`;
+        }).join('') + '</tbody></table></div>';
+      }
+    }
+    } catch (e) {
+      const msg = e && e.message ? String(e.message) : 'లోడ్ విఫలమైంది';
+      root.querySelectorAll('[data-k]').forEach(el => { el.textContent = '—'; });
+      $('anRevenuePlans').innerHTML = '';
+      if (popEl) popEl.innerHTML = '<p class="text-red-600 text-xs font-telugu">' + esc(msg) + '</p>';
+      if (smEl) smEl.innerHTML = '<p class="text-red-600 text-xs font-telugu">' + esc(msg) + '</p>';
+    }
   }
 
   async function loadStudents() {
     $('anStudentBody').innerHTML = '<tr><td colspan="8" class="px-4 py-8 text-center text-slate-500 bg-white">లోడ్…</td></tr>';
-    const res = await fetch(API + '?' + qs({ action: 'students', page: String(page), limit: String(limit) }));
-    const json = await res.json();
-    if (!json.ok) {
-      $('anStudentBody').innerHTML = '<tr><td colspan="8" class="text-red-600 px-4 bg-white">' + esc(json.error) + '</td></tr>';
-      return;
-    }
+    try {
+      const res = await fetch(API + '?' + qs({ action: 'students', page: String(page), limit: String(limit) }));
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (!json.ok) {
+        $('anStudentBody').innerHTML = '<tr><td colspan="8" class="text-red-600 px-4 bg-white">' + esc(json.error) + '</td></tr>';
+        return;
+      }
     total = json.meta?.total || 0;
     const rows = json.data || [];
     $('anListMeta').textContent = total + ' విద్యార్థులు · పేజీ ' + page;
@@ -212,6 +273,10 @@ require __DIR__ . '/../partials/page_header.php';
         <td class="text-center bg-white">${waCell}</td>
       </tr>`;
     }).join('');
+    } catch (e) {
+      const msg = e && e.message ? String(e.message) : 'లోడ్ విఫలమైంది';
+      $('anStudentBody').innerHTML = '<tr><td colspan="8" class="text-red-600 px-4 bg-white font-telugu">' + esc(msg) + '</td></tr>';
+    }
   }
 
   async function openProfile(id) {

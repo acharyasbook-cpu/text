@@ -29,6 +29,7 @@ final class ExamManagerController
                 'update_question' => $this->updateQuestion($data),
                 'delete_question' => $this->deleteQuestion($data),
                 'delete_exam' => $this->deleteExam($data),
+                'leaderboard_top' => $this->leaderboardTop($data),
                 default => $this->error('Unknown action', 400),
             };
         } catch (InvalidArgumentException $e) {
@@ -151,6 +152,29 @@ final class ExamManagerController
         }
         $this->repo->deleteTest($testId);
         echo json_encode(['ok' => true], JSON_UNESCAPED_UNICODE);
+    }
+
+    /** @param array<string,mixed> $data */
+    private function leaderboardTop(array $data): void
+    {
+        $testId = (int) ($data['test_id'] ?? $_GET['test_id'] ?? 0);
+        if ($testId < 1) {
+            throw new InvalidArgumentException('test_id required');
+        }
+        $test = $this->repo->testRow($testId);
+        if (!$test) {
+            throw new InvalidArgumentException('Test not found');
+        }
+        $top = $this->repo->topScorersForTest($testId, 3);
+        echo json_encode([
+            'ok' => true,
+            'test' => [
+                'id' => $testId,
+                'title' => (string) ($test['title'] ?? ''),
+                'course_name' => (string) ($test['course_name'] ?? ''),
+            ],
+            'top' => $top,
+        ], JSON_UNESCAPED_UNICODE);
     }
 
     private function error(string $msg, int $code = 400): void

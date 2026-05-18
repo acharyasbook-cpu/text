@@ -327,4 +327,40 @@ final class ExamManagerRepository
 
         return $row ?: null;
     }
+
+    /**
+     * Best score % per student for a single test (for optional admin poster).
+     *
+     * @return list<array{user_id:int,name:string,best_pct:float,best_score:int,best_max:int}>
+     */
+    public function topScorersForTest(int $testId, int $limit = 3): array
+    {
+        if ($testId < 1) {
+            return [];
+        }
+        $limit = max(1, min(10, $limit));
+        $st = db()->prepare(
+            "SELECT u.id AS user_id, u.name,
+                    MAX(ta.score / NULLIF(ta.max_score, 0) * 100) AS best_pct,
+                    MAX(ta.score) AS best_score,
+                    MAX(ta.max_score) AS best_max
+             FROM test_attempts ta
+             INNER JOIN users u ON u.id = ta.user_id AND u.role = 'student'
+             WHERE ta.test_id = ? AND ta.status = 'submitted' AND COALESCE(ta.max_score, 0) > 0
+             GROUP BY u.id, u.name
+             ORDER BY best_pct DESC, best_score DESC
+             LIMIT {$limit}"
+        );
+        $st->execute([$testId]);
+
+        return array_map(static function (array $r): array {
+            return [
+                'user_id' => (int) $r['user_id'],
+                'name' => (string) $r['name'],
+                'best_pct' => round((float) $r['best_pct'], 1),
+                'best_score' => (int) $r['best_score'],
+                'best_max' => (int) $r['best_max'],
+            ];
+        }, $st->fetchAll() ?: []);
+    }
 }

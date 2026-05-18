@@ -127,6 +127,30 @@ final class ScheduleTestRepository
         return $row ?: null;
     }
 
+    /** @return array{sub_course_id:int,day_index:int}|null */
+    public function rowScheduleGate(int $rowId): ?array
+    {
+        if (!$this->enabled() || $rowId < 1) {
+            return null;
+        }
+        $st = db()->prepare(
+            'SELECT d.sub_course_id, d.day_index
+             FROM st_schedule_rows r
+             INNER JOIN st_schedule_days d ON d.id = r.schedule_day_id
+             WHERE r.id = ? LIMIT 1'
+        );
+        $st->execute([$rowId]);
+        $row = $st->fetch();
+        if (!$row) {
+            return null;
+        }
+
+        return [
+            'sub_course_id' => (int) ($row['sub_course_id'] ?? 0),
+            'day_index' => (int) ($row['day_index'] ?? 0),
+        ];
+    }
+
     /** @return array<string,mixed>|null */
     public function dayByIndex(int $subCourseId, string $termKey, int $dayIndex): ?array
     {
@@ -141,25 +165,190 @@ final class ScheduleTestRepository
     /** @return list<array<string,mixed>> */
     public function rowsForDay(int $dayId): array
     {
-        $tpTbl = SchemaHelper::topicsTable();
         $st = db()->prepare(
-            "SELECT r.*, s.name AS subject_name, s.name_te AS subject_name_te, s.slug AS subject_slug,
+            'SELECT r.*, s.name AS subject_name, s.name_te AS subject_name_te, s.slug AS subject_slug,
                     t.slug AS test_slug, t.title AS test_title
              FROM st_schedule_rows r
              JOIN subjects s ON s.id = r.subject_id
              LEFT JOIN tests t ON t.id = r.test_id
              WHERE r.schedule_day_id = ?
-             ORDER BY r.sort_order, r.id"
+             ORDER BY r.sort_order, r.id'
         );
         $st->execute([$dayId]);
         $rows = $st->fetchAll() ?: [];
         foreach ($rows as &$row) {
             $row['topic_ids'] = $this->decodeTopicIds($row['topic_ids'] ?? '[]');
             $row['topics'] = $this->topicsMeta($row['topic_ids']);
+            $row['row_meta'] = $this->decodeRowMeta($row['row_meta'] ?? null);
+            $row['question_count'] = $this->questionCountForRow($row);
         }
         unset($row);
 
         return $rows;
+    }
+
+    /**
+     * Both term planners for the same day slot (day index or calendar date).
+     *
+     * @return array{short_term:array<string,mixed>,long_term:array<string,mixed>}
+     */
+    public function dualDayWorkspace(int $subCourseId, ?int $dayIndex, ?string $scheduleDate): array
+    {
+        $out = ['short_term' => ['day' => null, 'rows' => []], 'long_term' => ['day' => null, 'rows' => []]];
+        foreach ([self::TERM_SHORT => 'short_term', self::TERM_LONG => 'long_term'] as $term => $key) {
+            $day = null;
+            if ($scheduleDate !== null && $scheduleDate !== '') {
+                $st = db()->prepare(
+                    'SELECT * FROM st_schedule_days WHERE sub_course_id=? AND term_key=? AND schedule_date=? LIMIT 1'
+                );
+                $st->execute([$subCourseId, $term, $scheduleDate]);
+                $day = $st->fetch() ?: null;
+            } elseif ($dayIndex !== null && $dayIndex > 0) {
+                $day = $this->dayByIndex($subCourseId, $term, $dayIndex);
+            }
+            $out[$key]['day'] = $day;
+            $out[$key]['rows'] = $day ? $this->rowsForDay((int) $day['id']) : [];
+        }
+
+        return $out;
+    }
+
+    public function createCustomTopic(int $subjectId, string $title, ?int $adminUserId = null): int
+    {
+        if ($subjectId < 1 || trim($title) === '') {
+            throw new InvalidArgumentException('subject_id and title required');
+        }
+        $tbl = SchemaHelper::topicsTable();
+        $adminRepo = new AdminRepository();
+        $topicId = $adminRepo->createTopicQuick($subjectId, trim($title), trim($title));
+        if (SchemaHelper::columnExists($tbl, 'is_custom')) {
+            $sql = 'UPDATE `' . $tbl . '` SET is_custom=1';
+            $params = [];
+            if (SchemaHelper::columnExists($tbl, 'created_by_admin') && $adminUserId !== null && $adminUserId > 0) {
+                $sql .= ', created_by_admin=?';
+                $params[] = $adminUserId;
+            }
+            $sql .= ' WHERE id=?';
+            $params[] = $topicId;
+            db()->prepare($sql)->execute($params);
+        }
+
+        return $topicId;
+    }
+
+    /**
+     * Batch-save short + long term rows for one day slot; optionally dispatch WhatsApp.
+     *
+     * @param array<string,mixed> $payload
+     * @return array<string,mixed>
+     */
+    public function batchSaveDualTermDispatch(array $payload): array
+    {
+        $subCourseId = (int) ($payload['sub_course_id'] ?? 0);
+        if ($subCourseId < 1) {
+            throw new InvalidArgumentException('sub_course_id required');
+        }
+        $dayIndex = isset($payload['day_index']) && $payload['day_index'] !== ''
+            ? (int) $payload['day_index'] : null;
+        $scheduleDate = !empty($payload['schedule_date']) ? (string) $payload['schedule_date'] : null;
+
+        $shortPayload = [
+            'id' => (int) ($payload['short_day_id'] ?? 0) ?: null,
+            'sub_course_id' => $subCourseId,
+            'term_key' => self::TERM_SHORT,
+            'day_index' => $dayIndex,
+            'schedule_date' => $scheduleDate,
+            'rows' => $payload['short_term']['rows'] ?? $payload['short_rows'] ?? [],
+        ];
+        $longPayload = [
+            'id' => (int) ($payload['long_day_id'] ?? 0) ?: null,
+            'sub_course_id' => $subCourseId,
+            'term_key' => self::TERM_LONG,
+            'day_index' => $dayIndex,
+            'schedule_date' => $scheduleDate,
+            'rows' => $payload['long_term']['rows'] ?? $payload['long_rows'] ?? [],
+        ];
+
+        if (!$shortPayload['id'] && $dayIndex) {
+            $existing = $this->dayByIndex($subCourseId, self::TERM_SHORT, $dayIndex);
+            if ($existing) {
+                $shortPayload['id'] = (int) $existing['id'];
+            }
+        }
+        if (!$longPayload['id'] && $dayIndex) {
+            $existing = $this->dayByIndex($subCourseId, self::TERM_LONG, $dayIndex);
+            if ($existing) {
+                $longPayload['id'] = (int) $existing['id'];
+            }
+        }
+
+        $shortDayId = is_array($shortPayload['rows']) && $shortPayload['rows'] !== []
+            ? $this->saveDayWithRows($shortPayload) : (int) ($shortPayload['id'] ?? 0);
+        $longDayId = is_array($longPayload['rows']) && $longPayload['rows'] !== []
+            ? $this->saveDayWithRows($longPayload) : (int) ($longPayload['id'] ?? 0);
+
+        foreach (
+            [
+                ['id' => $shortDayId, 'locked' => !empty($payload['hold_short'])],
+                ['id' => $longDayId, 'locked' => !empty($payload['hold_long'])],
+            ] as $lock
+        ) {
+            if ($lock['id'] > 0 && $lock['locked']) {
+                $this->setDayStudentLock((int) $lock['id'], true);
+            }
+        }
+
+        $compiler = new ScheduleDailyNotificationService($this);
+        $compiled = $compiler->compileDailyNotification($subCourseId, $dayIndex, $scheduleDate);
+
+        $whatsapp = ['ok' => false, 'url' => '', 'text' => $compiled['text'], 'gateway' => null];
+        if (!empty($payload['dispatch_whatsapp'])) {
+            $whatsapp = $this->dispatchCompiledNotification($subCourseId, $compiled['text']);
+        } else {
+            $whatsapp['url'] = 'https://wa.me/?text=' . rawurlencode($compiled['text']);
+            $whatsapp['ok'] = $compiled['text'] !== '';
+        }
+
+        return [
+            'short_day_id' => $shortDayId,
+            'long_day_id' => $longDayId,
+            'short_rows' => $shortDayId > 0 ? $this->rowsForDay($shortDayId) : [],
+            'long_rows' => $longDayId > 0 ? $this->rowsForDay($longDayId) : [],
+            'notification' => $compiled,
+            'whatsapp' => $whatsapp,
+        ];
+    }
+
+    /** @return array{ok:bool,url:string,text:string,gateway:array<string,mixed>|null} */
+    public function dispatchCompiledNotification(int $subCourseId, string $message): array
+    {
+        $message = trim($message);
+        $waMe = 'https://wa.me/?text=' . rawurlencode($message);
+        if ($message === '') {
+            return ['ok' => false, 'url' => $waMe, 'text' => '', 'gateway' => null];
+        }
+
+        $hub = new WhatsAppHubRepository();
+        $row = $hub->subCourseRow($subCourseId);
+        if (!$row) {
+            return ['ok' => false, 'url' => $waMe, 'text' => $message, 'gateway' => ['error' => 'Sub-course not found']];
+        }
+
+        $gateway = new WhatsAppMobileGatewayService();
+        $group = $gateway->groupNameFromSubCourse($row);
+        $result = $gateway->fireTrigger($group, $message);
+
+        return [
+            'ok' => !empty($result['success']),
+            'url' => $waMe,
+            'text' => $message,
+            'gateway' => $result,
+        ];
+    }
+
+    public function questionCountForRow(array $row): int
+    {
+        return $this->questionCountForTest((int) ($row['test_id'] ?? 0));
     }
 
     /** @param array<string,mixed> $payload */
@@ -365,22 +554,13 @@ final class ScheduleTestRepository
         if (!$day) {
             return '';
         }
-        $rows = $this->rowsForDay($dayId);
-        $subjects = [];
-        $topics = [];
-        foreach ($rows as $r) {
-            $subjects[] = (string) (($r['subject_name_te'] ?? '') !== '' ? $r['subject_name_te'] : ($r['subject_name'] ?? ''));
-            foreach ($r['topics'] as $t) {
-                $topics[] = (string) ($t['title'] ?? '');
-            }
-        }
-        $subjects = array_unique(array_filter($subjects));
-        $topics = array_unique(array_filter($topics));
-        $subLine = $subjects !== [] ? implode(', ', $subjects) : '—';
-        $topLine = $topics !== [] ? implode(', ', array_slice($topics, 0, 12)) : '—';
+        $compiler = new ScheduleDailyNotificationService($this);
 
-        return 'ఆచార్య బుక్స్ - రేపటి లక్ష్యం: ' . $subLine . ' - ' . $topLine
-            . '. యాప్ ఓపెన్ చేసి పరీక్షలు రాయండి!';
+        return $compiler->compileDailyNotification(
+            (int) ($day['sub_course_id'] ?? 0),
+            isset($day['day_index']) ? (int) $day['day_index'] : null,
+            !empty($day['schedule_date']) ? (string) $day['schedule_date'] : null
+        )['text'];
     }
 
     /** @param array<string,mixed> $rowData */
@@ -401,19 +581,33 @@ final class ScheduleTestRepository
 
         $topicJson = json_encode($topicIds, JSON_UNESCAPED_UNICODE);
         $testId = (int) ($rowData['test_id'] ?? 0);
+        $rowMetaJson = $this->encodeRowMeta($rowData['row_meta'] ?? null);
 
         if ($rowId > 0) {
             $st = db()->prepare('SELECT test_id FROM st_schedule_rows WHERE id=?');
             $st->execute([$rowId]);
             $testId = (int) $st->fetchColumn() ?: $testId;
-            db()->prepare(
-                'UPDATE st_schedule_rows SET subject_id=?, sort_order=?, topic_ids=?, total_marks=?, question_mode=? WHERE id=?'
-            )->execute([$subjectId, $sort, $topicJson, $totalMarks, $mode, $rowId]);
+            if (SchemaHelper::columnExists('st_schedule_rows', 'row_meta')) {
+                db()->prepare(
+                    'UPDATE st_schedule_rows SET subject_id=?, sort_order=?, topic_ids=?, total_marks=?, question_mode=?, row_meta=? WHERE id=?'
+                )->execute([$subjectId, $sort, $topicJson, $totalMarks, $mode, $rowMetaJson, $rowId]);
+            } else {
+                db()->prepare(
+                    'UPDATE st_schedule_rows SET subject_id=?, sort_order=?, topic_ids=?, total_marks=?, question_mode=? WHERE id=?'
+                )->execute([$subjectId, $sort, $topicJson, $totalMarks, $mode, $rowId]);
+            }
         } else {
-            db()->prepare(
-                'INSERT INTO st_schedule_rows (schedule_day_id, subject_id, sort_order, topic_ids, total_marks, question_mode)
-                 VALUES (?,?,?,?,?,?)'
-            )->execute([$dayId, $subjectId, $sort, $topicJson, $totalMarks, $mode]);
+            if (SchemaHelper::columnExists('st_schedule_rows', 'row_meta')) {
+                db()->prepare(
+                    'INSERT INTO st_schedule_rows (schedule_day_id, subject_id, sort_order, topic_ids, total_marks, question_mode, row_meta)
+                     VALUES (?,?,?,?,?,?,?)'
+                )->execute([$dayId, $subjectId, $sort, $topicJson, $totalMarks, $mode, $rowMetaJson]);
+            } else {
+                db()->prepare(
+                    'INSERT INTO st_schedule_rows (schedule_day_id, subject_id, sort_order, topic_ids, total_marks, question_mode)
+                     VALUES (?,?,?,?,?,?)'
+                )->execute([$dayId, $subjectId, $sort, $topicJson, $totalMarks, $mode]);
+            }
             $rowId = (int) db()->lastInsertId();
         }
 
@@ -441,9 +635,12 @@ final class ScheduleTestRepository
         if ($mode === 'ai_pool') {
             $count = max(1, (int) ($rowData['ai_pool_count'] ?? $totalMarks));
             $testPayload['pool_question_ids'] = $this->aiPickQuestionIds($subjectId, $topicIds, $count);
-        } elseif ($mode === 'manual') {
+        } elseif ($mode === 'manual' || $mode === 'hybrid') {
             $raw = $rowData['pool_question_ids'] ?? [];
             $testPayload['pool_question_ids'] = is_array($raw) ? array_map('intval', $raw) : [];
+            if ($mode === 'hybrid' || $mode === 'external') {
+                $testPayload['external_mcq_text'] = (string) ($rowData['external_mcq_text'] ?? '');
+            }
         } elseif ($mode === 'external') {
             $testPayload['external_mcq_text'] = (string) ($rowData['external_mcq_text'] ?? '');
         }
@@ -499,6 +696,43 @@ final class ScheduleTestRepository
         $decoded = json_decode((string) $raw, true);
 
         return is_array($decoded) ? array_map('intval', $decoded) : [];
+    }
+
+    /** @return array<string,mixed> */
+    private function decodeRowMeta(mixed $raw): array
+    {
+        if (is_array($raw)) {
+            return $raw;
+        }
+        if ($raw === null || $raw === '') {
+            return [];
+        }
+        $decoded = json_decode((string) $raw, true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    /** @param mixed $meta */
+    private function encodeRowMeta(mixed $meta): ?string
+    {
+        if (!SchemaHelper::columnExists('st_schedule_rows', 'row_meta')) {
+            return null;
+        }
+        if ($meta === null || $meta === '') {
+            return null;
+        }
+        if (is_string($meta)) {
+            return $meta;
+        }
+        if (!is_array($meta)) {
+            return null;
+        }
+        $clean = array_filter([
+            'topic_label' => isset($meta['topic_label']) ? trim((string) $meta['topic_label']) : null,
+            'notes' => isset($meta['notes']) ? trim((string) $meta['notes']) : null,
+        ], static fn ($v) => $v !== null && $v !== '');
+
+        return $clean === [] ? null : json_encode($clean, JSON_UNESCAPED_UNICODE);
     }
 
     /** @param list<int> $ids @return list<array<string,mixed>> */
