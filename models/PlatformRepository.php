@@ -59,17 +59,52 @@ class PlatformRepository
 
     public function siteName(): string
     {
-        return (string) ($this->get('site_name') ?? 'Acharya Books');
+        return self::normalizeSiteName((string) ($this->get('site_name') ?? 'acharyasbook.com'));
     }
 
     public function siteNameTe(): string
     {
-        return (string) ($this->get('site_name_te') ?? 'ఆచార్య బుక్');
+        return self::normalizeSiteNameTe((string) ($this->get('site_name_te') ?? 'ఆచార్యస్ బుక్'));
     }
 
     public function siteTaglineTe(): string
     {
-        return (string) ($this->get('site_tagline_te') ?? 'మోడర్న్ గురుకుల్');
+        return self::normalizeTaglineTe((string) ($this->get('site_tagline_te') ?? 'acharyasbook.com'));
+    }
+
+    private static function normalizeSiteName(string $v): string
+    {
+        $v = trim($v);
+        if ($v === '' || strcasecmp($v, 'Acharya Books') === 0) {
+            return 'acharyasbook.com';
+        }
+
+        return $v;
+    }
+
+    private static function normalizeSiteNameTe(string $v): string
+    {
+        $v = trim($v);
+        $legacy = ['ఆచార్య బుక్', 'ఆచార్య బుక్', 'ఆచార్య బుక్స్', 'ఆచార్య బుక్'];
+        if ($v === '' || in_array($v, $legacy, true)) {
+            return 'ఆచార్యస్ బుక్';
+        }
+
+        return $v;
+    }
+
+    private static function normalizeTaglineTe(string $v): string
+    {
+        $v = trim($v);
+        if ($v === ''
+            || str_contains($v, 'గురుకుల్')
+            || str_contains($v, 'గురుకుల్')
+            || str_contains($v, 'మోడర్న్')
+            || str_contains($v, 'మోడరన్')) {
+            return 'acharyasbook.com';
+        }
+
+        return $v;
     }
 
     /** @return array<string,string|null> */
@@ -77,9 +112,9 @@ class PlatformRepository
     {
         return [
             'site_logo_path' => null,
-            'site_name' => 'Acharya Books',
-            'site_name_te' => 'ఆచార్య బుక్',
-            'site_tagline_te' => 'మోడర్న్ గురుకుల్',
+            'site_name' => 'acharyasbook.com',
+            'site_name_te' => 'ఆచార్యస్ బుక్',
+            'site_tagline_te' => 'acharyasbook.com',
         ];
     }
 }

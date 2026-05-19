@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/models/PlatformRepository.php';
+require_once dirname(__DIR__) . '/includes/CaPublicSiteSync.php';
+require_once dirname(__DIR__) . '/includes/HomeBannerSettings.php';
 
 final class HeaderController
 {
@@ -38,6 +40,18 @@ final class HeaderController
             'user' => current_user(),
             'active_nav' => $activeNav,
             'active_course_slug' => $activeCourseSlug,
+            'home_banners' => HomeBannerSettings::all(),
+            'is_admin_viewer' => !empty($_SESSION['admin']),
+            'ca_live_sync_pulse' => self::safeCaLiveSyncPulse(),
         ];
+    }
+
+    private static function safeCaLiveSyncPulse(): bool
+    {
+        try {
+            return CaPublicSiteSync::shouldBlinkGoldBadge();
+        } catch (Throwable) {
+            return false;
+        }
     }
 }

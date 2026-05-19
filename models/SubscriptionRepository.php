@@ -177,6 +177,17 @@ class SubscriptionRepository
         return is_string($val) && $val !== '' ? $val : null;
     }
 
+    /** Any active paid plan or legacy package subscription. */
+    public function userHasAnyActivePaidSubscription(int $userId): bool
+    {
+        if ($userId < 1) {
+            return false;
+        }
+        $packages = $this->activePackagesForUser($userId);
+
+        return $packages !== [];
+    }
+
     public function userHasActivePlanForSubCourse(int $userId, int $subCourseId): bool
     {
         if ($userId < 1 || $subCourseId < 1) {

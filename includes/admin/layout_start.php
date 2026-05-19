@@ -10,6 +10,7 @@ $success = admin_flash('success');
 $error = admin_flash('error');
 
 $adminCss = admin_site_url('assets/css/admin-premium.css');
+$caCss = admin_site_url('assets/css/current-affairs-cbt.css');
 
 function admin_nav_active(string $view, string $activeView): string
 {
@@ -27,6 +28,7 @@ function admin_nav_active(string $view, string $activeView): string
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="<?= admin_e($adminCss) ?>?v=2" />
+  <link rel="stylesheet" href="<?= admin_e($caCss) ?>?v=1" />
   <script>
     tailwind.config = {
       theme: {
@@ -70,6 +72,10 @@ function admin_nav_active(string $view, string $activeView): string
     </div>
 
     <nav class="flex-1 px-3 pb-3 space-y-0.5 overflow-y-auto">
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'home_banner'])) ?>" class="admin-nav-link<?= admin_nav_active('home_banner', $activeView) ?>">
+        <svg class="w-5 h-5 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 5a2 2 0 012-2h12a2 2 0 012 2v2H4V5zm0 4h16v10a2 2 0 01-2 2H6a2 2 0 01-2-2V9z"/></svg>
+        <span class="font-telugu">హోమ్ బ్యానర్</span>
+      </a>
       <a href="<?= admin_e(admin_dashboard_url(['view' => 'overview'])) ?>" class="admin-nav-link<?= admin_nav_active('overview', $activeView) ?>">
         <svg class="w-5 h-5 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
         Dashboard
@@ -79,6 +85,10 @@ function admin_nav_active(string $view, string $activeView): string
       <a href="<?= admin_e(admin_dashboard_url(['view' => 'content'])) ?>" class="admin-nav-link<?= admin_nav_active('content', $activeView) ?>">
         <svg class="w-5 h-5 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
         <span class="font-telugu">Content Manager</span>
+      </a>
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'current_affairs'])) ?>" class="admin-nav-link<?= admin_nav_active('current_affairs', $activeView) ?>">
+        <svg class="w-5 h-5 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+        <span class="font-telugu">Current Affairs</span>
       </a>
       <a href="<?= admin_e(admin_url('schedule_test.php')) ?>" class="admin-nav-link<?= admin_nav_active('schedule', $activeView) ?>">
         <svg class="w-5 h-5 shrink-0 opacity-80" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>

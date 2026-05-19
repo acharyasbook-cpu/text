@@ -23,7 +23,7 @@ if (($_GET['view'] ?? '') === 'subjects') {
 }
 
 $view = $_GET['view'] ?? 'overview';
-$allowed = ['overview', 'content', 'schedule', 'pricing', 'whatsapp', 'analytics', 'hierarchy', 'courses', 'exams', 'students', 'programme'];
+$allowed = ['overview', 'content', 'schedule', 'pricing', 'whatsapp', 'analytics', 'hierarchy', 'courses', 'exams', 'students', 'programme', 'current_affairs', 'home_banner'];
 if (!in_array($view, $allowed, true)) {
     $view = 'overview';
 }
@@ -43,6 +43,8 @@ $titles = [
     'exams'     => 'Exam & MCQ Manager',
     'students'  => 'Students & Subscriptions',
     'programme' => 'Programme Workspace',
+    'current_affairs' => 'Daily Current Affairs Engine',
+    'home_banner' => 'హోమ్ బ్యానర్ బ్రాండింగ్ నిర్వహణ',
 ];
 
 $pageTitle = $titles[$view] . ' | Admin';
@@ -115,6 +117,12 @@ switch ($view) {
         break;
     case 'analytics':
         require ACHARYA_ROOT . '/includes/admin/views/analytics.php';
+        break;
+    case 'current_affairs':
+        require ACHARYA_ROOT . '/includes/admin/views/current_affairs.php';
+        break;
+    case 'home_banner':
+        require ACHARYA_ROOT . '/includes/admin/views/home_banner_branding.php';
         break;
     default:
         $dash = $repo->dashboardStats();

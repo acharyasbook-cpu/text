@@ -1,14 +1,75 @@
 <?php
 /** @var list<array<string,mixed>> $catalog */
+/** @var array<string,mixed> $header */
 require_once dirname(__DIR__, 2) . '/MediaAvatarHelper.php';
+require_once dirname(__DIR__, 2) . '/HomeBannerSettings.php';
+require_once dirname(__DIR__, 2) . '/public_site_helpers.php';
+$user = current_user();
+$banners = $header['home_banners'] ?? HomeBannerSettings::all();
+$hero = $banners['hero'] ?? [];
+$ca = $banners['ca'] ?? [];
+$caExamUrl = base_url(ca_exam_environment_script());
+$caGatewayUrl = $user
+    ? $caExamUrl
+    : base_url('login.php?return=' . rawurlencode(ca_exam_environment_script()));
+$heroBg = (string) ($hero['bg_color'] ?? '');
+$heroImg = $hero['bg_image_url'] ?? null;
+$caBg = (string) ($ca['bg_color'] ?? '');
+$caImg = $ca['bg_image_url'] ?? null;
+$heroLine1 = trim((string) ($hero['line1'] ?? '')) !== ''
+    ? (string) $hero['line1']
+    : 'మీ విజయం, మా లక్ష్యం. ఆచార్యతో సిద్ధమవ్వండి.';
+$heroEyebrow = trim((string) ($hero['eyebrow'] ?? '')) !== ''
+    ? (string) $hero['eyebrow']
+    : 'ACHARYASBOOK.COM';
+$heroLine2 = trim((string) ($hero['line2'] ?? '')) !== ''
+    ? (string) $hero['line2']
+    : 'ప్రతిష్టాత్మక ఆన్‌లైన్ లెర్నింగ్ — పరీక్షల విజయానికి సరైన మార్గదర్శకత్వం.';
+$caLine2 = trim((string) ($ca['line2'] ?? '')) !== '' ? (string) $ca['line2'] : 'డైలీ కరెంట్ అఫైర్స్';
+$caLine3 = trim((string) ($ca['line3'] ?? '')) !== '' ? (string) $ca['line3'] : 'నేటి పరీక్ష';
 ?>
 <section class="home-course-section">
-  <div class="classical-hero px-6 sm:px-8 py-8 sm:py-10 mb-8 rounded-xl border border-[#E3E6F0] bg-gradient-to-br from-royal to-royal-light text-white shadow-sm">
-    <p class="text-xs font-bold uppercase tracking-widest text-amber-300 font-sans">ACHARYA BOOK · FREE PREVIEW</p>
-    <h1 class="font-telugu text-2xl sm:text-3xl font-bold mt-3 leading-snug text-white">మీ విజయం, మా లక్ష్యం. ఆచార్యతో సిద్ధమవ్వండి.</h1>
-    <p class="font-telugu text-sm text-blue-100/95 mt-3 max-w-2xl leading-relaxed">
-      అడ్మిన్ ప్యానెల్ నుండి అప్‌లోడ్ చేసిన కోర్సు చిత్రాలు — ఇక్కడ ఆటోమేటిక్‌గా కనిపిస్తాయి.
-    </p>
+  <div class="home-brand-showcase mb-8">
+    <div class="home-brand-showcase__grid">
+    <article class="home-brand-hero classical-hero home-hero-banner flex flex-col justify-center relative overflow-hidden"
+         style="background: <?= e($heroBg) ?>">
+      <?php if ($heroImg): ?>
+      <div class="home-hero-banner__bg-image absolute inset-0 bg-cover bg-center opacity-20" style="background-image:url('<?= e($heroImg) ?>')"></div>
+      <?php endif; ?>
+      <div class="home-brand-hero__inner relative z-10">
+        <p class="home-brand-hero__eyebrow"><?= e($heroEyebrow) ?></p>
+        <h1 class="font-telugu home-brand-hero__title" style="font-size:<?= e((string) ($hero['line1_size'] ?? '1.875rem')) ?>">
+          <?= e($heroLine1) ?>
+        </h1>
+        <p class="font-telugu home-brand-hero__subtitle" style="font-size:<?= e((string) ($hero['line2_size'] ?? '0.9375rem')) ?>">
+          <?= e($heroLine2) ?>
+        </p>
+      </div>
+    </article>
+
+    <aside class="home-brand-ca ca-home-hub ca-home-hub--gold flex flex-col justify-center relative overflow-hidden"
+           style="background: <?= e($caBg) ?>">
+      <?php if ($caImg): ?>
+      <div class="ca-home-hub__bg-image" style="background-image: url('<?= e($caImg) ?>')"></div>
+      <?php endif; ?>
+      <div class="ca-home-hub__inner relative z-10">
+        <p class="ca-home-hub__eyebrow font-telugu" style="font-size:<?= e((string) ($ca['line1_size'] ?? '0.65rem')) ?>">
+          <?= e((string) ($ca['line1'] ?? 'డైలీ టెస్ట్')) ?>
+        </p>
+        <h2 class="ca-home-hub__title font-telugu mt-2 font-bold" style="font-size:<?= e((string) ($ca['line2_size'] ?? '1.35rem')) ?>">
+          <?= e($caLine2) ?>
+        </h2>
+        <p class="ca-home-hub__subtitle font-telugu mt-3" style="font-size:<?= e((string) ($ca['line3_size'] ?? '0.8rem')) ?>">
+          <?= e($caLine3) ?>
+        </p>
+        <div class="mt-6">
+          <a href="<?= e($caGatewayUrl) ?>"
+             id="caGoldExamWriteBtn"
+             class="ca-home-hub__cta font-telugu">ఎగ్జామ్ రాయండి →</a>
+        </div>
+      </div>
+    </aside>
+    </div>
   </div>
 
   <header class="mb-8">

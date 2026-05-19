@@ -18,7 +18,8 @@ final class UserController
     public function login(): void
     {
         if (current_user()) {
-            redirect($this->postLoginPath(current_user()));
+            $return = safe_return_path($_GET['return'] ?? '');
+            redirect($return !== '' ? ltrim($return, '/') : $this->postLoginPath(current_user()));
         }
         if (!empty($_SESSION['admin'])) {
             redirect('admin/dashboard.php');

@@ -18,8 +18,19 @@ $dbConfig = require dirname(__DIR__) . '/config/database.php';
 
 date_default_timezone_set($config['timezone']);
 
-$scriptDir = str_replace('\\', '/', dirname($_SERVER['SCRIPT_NAME'] ?? ''));
-$basePath = ($scriptDir === '/' || $scriptDir === '') ? '' : rtrim($scriptDir, '/');
+// Web path prefix to app root (e.g. '' or '/mysubdir'). Never use only dirname(SCRIPT_NAME) for
+// scripts under /admin/* — that breaks public assets. Never rely on DOCUMENT_ROOT/realpath alone —
+// that can diverge from SCRIPT_NAME and blank the layout.
+$scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/index.php'));
+$adminMarker = '/admin/';
+$adminPos = strpos($scriptName, $adminMarker);
+if ($adminPos !== false) {
+    $prefix = $adminPos === 0 ? '' : substr($scriptName, 0, $adminPos);
+    $basePath = $prefix === '' ? '' : rtrim($prefix, '/');
+} else {
+    $scriptDir = str_replace('\\', '/', dirname($scriptName));
+    $basePath = ($scriptDir === '/' || $scriptDir === '.' || $scriptDir === '') ? '' : rtrim($scriptDir, '/');
+}
 $config['base_url'] = $basePath;
 
 function base_url(string $path = ''): string
@@ -46,11 +57,13 @@ function current_user(): ?array
     return $_SESSION['user'] ?? null;
 }
 
-function require_login(): array
+function require_login(?string $returnPath = null): array
 {
     $user = current_user();
     if (!$user) {
-        redirect('login.php');
+        $return = safe_return_path($returnPath ?? ($_SERVER['REQUEST_URI'] ?? ''));
+        $q = $return !== '' ? '?return=' . rawurlencode(ltrim($return, '/')) : '';
+        redirect('login.php' . $q);
     }
     return $user;
 }

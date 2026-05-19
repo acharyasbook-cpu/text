@@ -39,6 +39,12 @@ function public_sub_course_workspace_url(string $courseSlug, string $subCourseSl
     return base_url('sub_course.php?' . http_build_query(['course' => $courseSlug, 'sub' => $subCourseSlug]));
 }
 
+/** Canonical student CBT entry (under admin path per product routing). */
+function ca_exam_environment_script(): string
+{
+    return 'admin/mcq_generator/exam_environment.php';
+}
+
 /**
  * Web path prefix for project root (no trailing slash), e.g. '' or '/acharya-books'.
  * Pure PHP — does not require init.php or base_url().

@@ -18,6 +18,7 @@ $user = $header['user'];
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+Telugu:wght@500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="<?= e(base_url('assets/css/classical.css')) ?>?v=<?= (int) @filemtime(dirname(__DIR__, 2) . '/assets/css/classical.css') ?>" />
+  <link rel="stylesheet" href="<?= e(base_url('assets/css/current-affairs-cbt.css')) ?>?v=<?= (int) @filemtime(dirname(__DIR__, 2) . '/assets/css/current-affairs-cbt.css') ?>" />
   <script>
     tailwind.config = {
       theme: {
@@ -49,10 +50,9 @@ $user = $header['user'];
         <span class="text-lg font-bold text-royal">ఆ</span>
         <?php endif; ?>
       </span>
-      <span class="min-w-0">
-        <span class="block font-telugu text-xl sm:text-2xl font-bold text-slate-900 leading-tight group-hover:text-royal transition-colors"><?= e($header['site_name_te']) ?></span>
-        <span class="block text-[11px] sm:text-xs text-slate-600 font-telugu"><?= e($header['site_tagline_te']) ?></span>
-        <span class="hidden sm:block text-[10px] text-slate-400 mt-0.5">Learn · Practice · Excel</span>
+      <span class="min-w-0 classical-brand-lockup">
+        <span class="block font-telugu text-xl sm:text-2xl font-bold text-slate-900 leading-tight group-hover:text-royal transition-colors classical-brand-title"><?= e($header['site_name_te']) ?></span>
+        <span class="block classical-brand-domain text-[11px] sm:text-xs font-semibold tracking-wide text-royal/90 mt-0.5"><?= e($header['site_tagline_te']) ?></span>
       </span>
     </a>
     <div class="flex items-center gap-2 sm:gap-3">

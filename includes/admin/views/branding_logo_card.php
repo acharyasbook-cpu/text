@@ -19,7 +19,12 @@ if ($logoPath) {
       <p class="text-[10px] font-bold uppercase tracking-widest text-slate-500">Website Branding</p>
       <h2 class="font-telugu text-xl font-bold text-slate-900 mt-0.5">లోగో &amp; బ్రాండింగ్ నిర్వహణ</h2>
     </div>
-    <span class="text-xs text-slate-500 font-telugu">పబ్లిక్ సైట్ హెడర్‌లో తక్షణం అప్‌డేట్</span>
+    <div class="flex flex-wrap items-center gap-2">
+      <a href="<?= admin_e(admin_dashboard_url(['view' => 'home_banner'])) ?>" class="admin-btn admin-btn-secondary text-xs font-telugu whitespace-nowrap">
+        హోమ్ బ్యానర్ బ్రాండింగ్ నిర్వహణ
+      </a>
+      <span class="text-xs text-slate-500 font-telugu">పబ్లిక్ సైట్ తక్షణ సింక్</span>
+    </div>
   </div>
 
   <div class="p-6 sm:p-8">
